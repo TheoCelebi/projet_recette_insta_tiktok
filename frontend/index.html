@@ -96,8 +96,10 @@ function fmtQty(q) {
 }
 
 // Les ingrédients comptés à la pièce (œufs, gousses...) restent des nombres entiers
+const isCount = i => !i.unit || /^pi[eè]ces?$/i.test(i.unit.trim());
+const unitLabel = i => isCount(i) ? "" : i.unit;
 const scaled = (i, ratio) => i.quantity == null ? null
-  : !i.unit && Number.isInteger(i.quantity) ? Math.max(1, Math.round(i.quantity * ratio)) : i.quantity * ratio;
+  : isCount(i) && Number.isInteger(i.quantity) ? Math.max(1, Math.round(i.quantity * ratio)) : i.quantity * ratio;
 
 const minutes = m => m == null ? "–" : m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? m % 60 : ""}` : `${m} min`;
 
@@ -167,7 +169,7 @@ async function detail(id) {
     const ingHtml = sections.map(s => `${s ? `<h4>${esc(s)}</h4>` : ""}<ul class="ing">${
       d.ingredients.map((i, idx) => ({ i, idx })).filter(({ i }) => (i.section || "") === s).map(({ i, idx }) => `
         <li data-idx="${idx}" class="${checked.has(idx) ? "done" : ""}">
-          <span class="q">${esc(fmtQty(scaled(i, ratio)))} ${esc(i.unit)}</span>
+          <span class="q">${esc(fmtQty(scaled(i, ratio)))} ${esc(unitLabel(i))}</span>
           <span>${esc(i.name)}${i.note ? ` <span class="meta">— ${esc(i.note)}</span>` : ""}</span></li>`).join("")}</ul>`).join("");
 
     $view.innerHTML = `
@@ -202,7 +204,7 @@ async function detail(id) {
     });
     document.getElementById("copy").onclick = () => {
       const lines = d.ingredients.filter((_, i) => !checked.has(i)).map(i =>
-        `- ${[fmtQty(scaled(i, ratio)), i.unit, i.name].filter(Boolean).join(" ")}`);
+        `- ${[fmtQty(scaled(i, ratio)), unitLabel(i), i.name].filter(Boolean).join(" ")}`);
       navigator.clipboard.writeText(`${d.title} (${servings} pers.)\n${lines.join("\n")}`).then(() => toast("Liste copiée ✔"));
     };
     bindDelete(id);
