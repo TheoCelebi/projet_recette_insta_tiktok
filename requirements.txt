@@ -1,0 +1,8 @@
+anthropic>=2.1
+fastapi
+uvicorn[standard]
+yt-dlp
+curl_cffi  # impersonation navigateur, nécessaire pour TikTok
+pydantic>=2
+imageio-ffmpeg
+faster-whisper  # optionnel : transcription audio locale

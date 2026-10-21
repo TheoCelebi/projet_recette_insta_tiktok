@@ -1,0 +1,14 @@
+{
+  "name": "Mes Recettes",
+  "short_name": "Recettes",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#e8590c",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}
