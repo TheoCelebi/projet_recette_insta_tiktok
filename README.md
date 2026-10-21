@@ -35,6 +35,18 @@ cp .env.example .env    # puis colle ta clé (https://console.anthropic.com) dan
 
 Puis ouvre http://localhost:8765.
 
+### Sans crédits API : via ton abonnement Claude
+
+Si `.env` ne contient pas de clé `sk-ant-…`, l'appli passe automatiquement par
+[Claude Code](https://claude.com/claude-code) (`claude -p`), qui utilise ton abonnement
+Claude (Pro/Max) au lieu de crédits API. Il suffit que Claude Code soit connecté :
+
+```bash
+claude      # puis tape /login et suis les instructions
+```
+
+Chaque import consomme alors une partie des limites d'usage de ton abonnement.
+
 Options (variables d'environnement) :
 - `WHISPER_MODEL` : modèle de transcription (`small` par défaut, `base` = plus rapide, `medium` = plus précis).
 - `YTDLP_COOKIES_FROM_BROWSER=chrome` : utilise les cookies de ton navigateur, utile pour

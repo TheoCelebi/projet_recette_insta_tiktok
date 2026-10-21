@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
+import shutil
+import subprocess
+
 import anthropic
 from pydantic import BaseModel, Field
 
@@ -70,7 +75,41 @@ def _build_content(media: MediaContent) -> list[dict]:
 
 
 def extract_recipe(media: MediaContent, client: anthropic.Anthropic | None = None) -> Recipe:
-    client = client or anthropic.Anthropic()
+    """API Anthropic si une clé est configurée, sinon Claude Code (abonnement Claude)."""
+    if client is None and not os.environ.get("ANTHROPIC_API_KEY", "").startswith("sk-ant-"):
+        return _extract_with_claude_code(media)
+    return _extract_with_api(media, client or anthropic.Anthropic())
+
+
+def _extract_with_claude_code(media: MediaContent) -> Recipe:
+    """Passe par la CLI `claude -p` : utilise l'abonnement Claude, sans crédits API."""
+    cli = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
+    if not os.path.exists(cli):
+        raise RuntimeError("Ni clé API Anthropic ni Claude Code installé.")
+    message = {"type": "user", "message": {"role": "user", "content": _build_content(media)}}
+    env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+    proc = subprocess.run(
+        [cli, "-p", "--model", "opus", "--input-format", "stream-json", "--output-format", "stream-json",
+         "--verbose", "--no-session-persistence", "--tools", "", "--system-prompt", SYSTEM,
+         "--json-schema", json.dumps(Recipe.model_json_schema())],
+        input=json.dumps(message), capture_output=True, text=True, timeout=600, env=env,
+    )
+    result = next((json.loads(line) for line in reversed(proc.stdout.splitlines())
+                   if line.startswith('{"') and '"type":"result"' in line), None)
+    if result is None:
+        raise RuntimeError(f"Claude Code n'a rien renvoyé : {proc.stderr.strip()[:300]}")
+    if result.get("is_error"):
+        msg = result.get("result", "erreur inconnue")
+        if "authenticate" in msg.lower() or "login" in msg.lower():
+            msg = "Claude Code n'est pas connecté : lance `claude` dans un terminal puis /login."
+        raise RuntimeError(msg)
+    data = result.get("structured_output")
+    if data is None:
+        data = json.loads(result.get("result", "").strip().removeprefix("```json").removesuffix("```"))
+    return Recipe.model_validate(data)
+
+
+def _extract_with_api(media: MediaContent, client: anthropic.Anthropic) -> Recipe:
     response = client.beta.messages.parse(
         model=MODEL,
         max_tokens=16000,
