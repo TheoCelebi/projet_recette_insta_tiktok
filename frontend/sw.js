@@ -1,8 +1,9 @@
 // Service worker : permet d'ouvrir l'appli et de voir les photos même quand le Mac est éteint.
 // Les données des recettes sont gardées côté page (localStorage), voir index.html.
-const SHELL = "shell-v1";
+const SHELL = "shell-v2";
 const THUMBS = "thumbs-v1";
-const SHELL_FILES = ["/", "/manifest.json", "/icon.svg", "/icon-180.png"];
+const SHELL_FILES = ["/", "/manifest.json", "/icon.svg", "/icon-180.png",
+  "/fonts/fraunces.woff2", "/fonts/fraunces-italic.woff2", "/fonts/dmsans.woff2"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));

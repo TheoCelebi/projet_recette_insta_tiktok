@@ -86,3 +86,7 @@ directement dans le menu Partager (manifest `share_target`).
 - La transcription locale prend 5 à 30 s selon la longueur de la vidéo (premier lancement :
   téléchargement du modèle Whisper, ~500 Mo).
 - Pas de comptes utilisateurs : c'est un outil perso, à ne pas exposer tel quel sur Internet.
+
+## Crédits
+
+Polices [Fraunces](https://fonts.google.com/specimen/Fraunces) et [DM Sans](https://fonts.google.com/specimen/DM+Sans), sous licence SIL Open Font License, intégrées dans `frontend/fonts/` pour fonctionner hors ligne.

@@ -3,87 +3,208 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mes Recettes</title>
+<title>Mon carnet</title>
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#e8590c">
+<meta name="theme-color" content="#F6F0E4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1A1512" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Recettes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Carnet">
 <link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preload" href="/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  @font-face { font-family: "Fraunces"; font-style: normal; font-weight: 300 600; font-display: swap;
+               src: url(/fonts/fraunces.woff2) format("woff2"); }
+  @font-face { font-family: "Fraunces"; font-style: italic; font-weight: 300 600; font-display: swap;
+               src: url(/fonts/fraunces-italic.woff2) format("woff2"); }
+  @font-face { font-family: "DM Sans"; font-style: normal; font-weight: 400 600; font-display: swap;
+               src: url(/fonts/dmsans.woff2) format("woff2"); }
+
   :root {
-    --bg: #faf7f2; --card: #ffffff; --ink: #2b2118; --muted: #8a7b6d;
-    --line: #ece4d9; --accent: #e8590c; --accent-soft: #fff0e6; --danger: #c92a2a;
+    --paper: #F6F0E4; --card: #FBF7EF; --ink: #2E2318; --soft: #6E5A48; --muted: #9A6B4F;
+    --line: #E3D7C4; --accent: #C4683E; --accent-ink: #FFF8EF; --wash: #EFE4D2; --danger: #B3402A;
+    --serif: "Fraunces", Georgia, serif; --sans: "DM Sans", -apple-system, system-ui, sans-serif;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #17130f; --card: #221c16; --ink: #f3ebe1; --muted: #a8998a;
-            --line: #362c22; --accent: #ff8a3d; --accent-soft: #3a2616; --danger: #ff6b6b; }
+    :root:not([data-theme="light"]) {
+      --paper: #1A1512; --card: #241D18; --ink: #F1E7D8; --soft: #C9B8A4; --muted: #B59A82;
+      --line: #3A2F27; --accent: #E08A5F; --accent-ink: #1A1512; --wash: #2E2620; --danger: #F08A72;
+      color-scheme: dark;
+    }
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-         font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 16px 16px 64px; }
-  header { display: flex; align-items: center; gap: 10px; margin: 8px 0 18px; }
-  header h1 { font-size: 24px; margin: 0; letter-spacing: -.02em; }
-  header a { color: inherit; text-decoration: none; }
-  a { color: var(--accent); }
-  form { display: flex; gap: 8px; margin-bottom: 20px; }
-  input[type=url], input[type=search] { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px;
-         border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 16px; }
-  button { border: 0; border-radius: 12px; padding: 12px 16px; font-size: 15px; font-weight: 600;
-           background: var(--accent); color: #fff; cursor: pointer; }
-  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden;
-          text-decoration: none; color: inherit; display: flex; flex-direction: column; }
-  .thumb { aspect-ratio: 4/3; background: var(--accent-soft) center/cover no-repeat;
-           display: grid; place-items: center; font-size: 40px; }
-  .card .body { padding: 12px 14px; }
-  .card h3 { margin: 0 0 4px; font-size: 16px; line-height: 1.3; }
-  .meta { color: var(--muted); font-size: 13px; }
-  .pill { display: inline-block; padding: 2px 10px; border-radius: 99px; background: var(--accent-soft);
-          color: var(--accent); font-size: 12px; font-weight: 600; margin: 0 4px 4px 0; }
-  .err { color: var(--danger); }
-  .spinner { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--accent);
+  :root[data-theme="dark"] {
+    --paper: #1A1512; --card: #241D18; --ink: #F1E7D8; --soft: #C9B8A4; --muted: #B59A82;
+    --line: #3A2F27; --accent: #E08A5F; --accent-ink: #1A1512; --wash: #2E2620; --danger: #F08A72;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { background: var(--paper); }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.55 var(--sans);
+         -webkit-font-smoothing: antialiased; }
+  main { max-width: 720px; margin: 0 auto;
+         padding: max(16px, env(safe-area-inset-top)) 16px calc(48px + env(safe-area-inset-bottom)); }
+  a { color: inherit; }
+  button { font: 500 15px var(--sans); cursor: pointer; border: 0; color: inherit; background: none; }
+  .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .meta { font-size: 13px; color: var(--muted); }
+
+  /* En-tête */
+  .top { display: flex; justify-content: space-between; align-items: flex-start; margin: 4px 0 18px; }
+  .top h1 { font: 400 34px/1.05 var(--serif); margin: 6px 0 0; letter-spacing: -.01em; }
+  .top h1 em { font-weight: 300; color: var(--accent); }
+  .icon-btn { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+              border: 1px solid var(--line); color: var(--soft); flex: none; }
+  .icon-btn svg { width: 18px; height: 18px; }
+
+  /* Import */
+  .import { display: flex; gap: 6px; padding: 5px 5px 5px 16px; border: 1px solid var(--line);
+            border-radius: 99px; background: var(--card); margin-bottom: 18px; }
+  .import input { flex: 1; min-width: 0; border: 0; background: none; color: var(--ink); font: 15px var(--sans); outline: none; }
+  .import input::placeholder { color: var(--muted); }
+  .btn { background: var(--accent); color: var(--accent-ink); border-radius: 99px; padding: 10px 18px; }
+  .btn.ghost { background: none; color: var(--ink); border: 1px solid var(--line); }
+  .btn:active { transform: scale(.97); }
+
+  /* Filtres */
+  .chips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px 20px; padding: 0 16px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; padding: 6px 14px; border-radius: 99px; border: 1px solid var(--line);
+          font-size: 13px; color: var(--soft); white-space: nowrap; }
+  .chip.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  /* Cartes */
+  .photo { background: var(--wash) center/cover no-repeat; border-radius: 6px; display: grid; place-items: center;
+           color: var(--muted); overflow: hidden; }
+  .photo svg { width: 34px; height: 34px; opacity: .7; }
+  .feature { display: block; text-decoration: none; margin-bottom: 26px; }
+  .feature .photo { aspect-ratio: 4/3; }
+  .feature h2 { font: 400 26px/1.12 var(--serif); margin: 6px 0 4px; letter-spacing: -.01em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 14px; }
+  .card { display: block; text-decoration: none; }
+  .card .photo { aspect-ratio: 1; }
+  .card h3 { font: 400 17px/1.2 var(--serif); margin: 8px 0 2px; }
+  .card.err h3 { color: var(--danger); }
+  .rule { display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; }
+  .rule::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  .spinner { width: 26px; height: 26px; border: 2px solid var(--line); border-top-color: var(--accent);
              border-radius: 50%; animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .hero h2 { font-size: 28px; line-height: 1.2; margin: 6px 0 8px; letter-spacing: -.02em; }
-  .facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
-  .fact { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
-  .fact b { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
-  section { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin: 14px 0; }
-  section h3 { margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
-  .stepper { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 500; }
-  .stepper button { padding: 4px 12px; font-size: 18px; }
-  ul.ing { list-style: none; padding: 0; margin: 0; }
-  ul.ing li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
-  ul.ing li:last-child { border: 0; }
-  ul.ing li.done { opacity: .45; text-decoration: line-through; }
-  ul.ing .q { font-weight: 600; min-width: 84px; }
-  h4 { margin: 14px 0 4px; color: var(--accent); font-size: 14px; text-transform: uppercase; letter-spacing: .04em; }
-  ol.steps { padding-left: 0; margin: 0; list-style: none; counter-reset: s; }
-  ol.steps li { counter-increment: s; position: relative; padding: 0 0 14px 42px; }
-  ol.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 28px; height: 28px;
-           border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center;
-           font-size: 14px; font-weight: 700; }
+
+  .empty { text-align: center; padding: 48px 12px; }
+  .empty h2 { font: 400 italic 28px/1.2 var(--serif); margin: 18px 0 8px; }
+  .empty p { color: var(--soft); max-width: 340px; margin: 0 auto; }
+  .empty svg { width: 64px; height: 64px; color: var(--accent); }
+
+  .offline { border: 1px dashed var(--muted); color: var(--soft); border-radius: 10px; padding: 10px 14px;
+             font-size: 14px; margin-bottom: 18px; }
+
+  /* Fiche recette */
+  .hero { margin: calc(-1 * max(16px, env(safe-area-inset-top))) -16px 18px; position: relative; }
+  .hero .photo { border-radius: 0; aspect-ratio: 4/3; max-height: 62vh; width: 100%; }
+  .hero .icon-btn { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 16px; background: var(--paper); border: 0; }
+  .detail h2 { font: 400 34px/1.08 var(--serif); margin: 8px 0 10px; letter-spacing: -.015em; }
+  .summary { font: 300 italic 18px/1.45 var(--serif); color: var(--soft); margin: 0 0 6px; }
+  .facts { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line);
+           border-bottom: 1px solid var(--line); margin: 20px 0 24px; }
+  .facts div { padding: 12px 0; text-align: center; }
+  .facts div + div { border-left: 1px solid var(--line); }
+  .facts b { display: block; font: 400 19px var(--serif); }
+  .sec-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .sec-title h3 { font: 400 24px var(--serif); margin: 0; }
+  .stepper { display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--soft); }
+  .stepper button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); font-size: 18px; line-height: 1; }
+  .stepper span { min-width: 64px; text-align: center; }
+  h4 { font: 400 italic 17px var(--serif); color: var(--accent); margin: 16px 0 2px; }
+  ul.ing { list-style: none; padding: 0; margin: 0 0 30px; }
+  ul.ing li { display: grid; grid-template-columns: 22px 78px 1fr; gap: 8px; align-items: baseline;
+              padding: 11px 0; border-bottom: 1px dotted var(--line); cursor: pointer; transition: opacity .2s; }
+  ul.ing .box { width: 16px; height: 16px; border: 1.5px solid var(--muted); border-radius: 4px; align-self: center;
+                display: grid; place-items: center; transition: background .15s, border-color .15s; }
+  ul.ing li.done { opacity: .45; }
+  ul.ing li.done .box { background: var(--accent); border-color: var(--accent); }
+  ul.ing li.done .box::after { content: ""; width: 8px; height: 4px; border: solid var(--accent-ink);
+                                border-width: 0 0 2px 2px; transform: rotate(-45deg) translate(1px, -1px); }
+  ul.ing li.done .name { text-decoration: line-through; }
+  ul.ing .q { font: 500 16px var(--serif); color: var(--accent); }
+  ol.steps { list-style: none; padding: 0; margin: 0 0 30px; counter-reset: s; }
+  ol.steps li { counter-increment: s; display: grid; grid-template-columns: 44px 1fr; padding: 12px 0;
+                border-bottom: 1px solid var(--line); }
+  ol.steps li::before { content: counter(s, decimal-leading-zero); font: 300 italic 22px/1.2 var(--serif); color: var(--accent); }
+  .note { background: var(--wash); border-radius: 10px; padding: 16px 18px; margin-bottom: 28px; }
+  .note h3 { font: 400 italic 20px var(--serif); margin: 0 0 6px; }
+  .note ul { margin: 0; padding-left: 18px; color: var(--soft); }
+  .note li { margin: 4px 0; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .center { display: grid; place-items: center; gap: 12px; padding: 40px 0; text-align: center; }
-  .offline { background: var(--accent-soft); color: var(--accent); border-radius: 12px; padding: 10px 14px;
-             font-size: 14px; margin-bottom: 16px; }
-  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink);
-           color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; }
+  .actions .btn { flex: 1 1 auto; text-align: center; }
+  .cook-cta { width: 100%; padding: 15px; font-size: 16px; margin-bottom: 26px; display: flex; gap: 8px;
+              justify-content: center; align-items: center; }
+  .cook-cta svg { width: 18px; height: 18px; }
+  .center { display: grid; place-items: center; gap: 12px; padding: 48px 0; text-align: center; }
+  .center h2 { font: 400 italic 24px var(--serif); margin: 0; }
+
+  /* Mode cuisine */
+  .cook { position: fixed; inset: 0; background: var(--paper); z-index: 10; display: flex; flex-direction: column;
+          padding: max(16px, env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom)); }
+  .cook-head { display: flex; justify-content: space-between; align-items: center; }
+  .progress { height: 2px; background: var(--line); margin: 14px 0 0; }
+  .progress i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+  .cook-body { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 640px;
+               margin: 0 auto; width: 100%; }
+  .cook-num { font: 300 italic 64px/1 var(--serif); color: var(--accent); }
+  .cook-text { font: 400 28px/1.3 var(--serif); margin: 14px 0 22px; }
+  .timer { align-self: flex-start; display: flex; align-items: center; gap: 8px; border: 1px solid var(--accent);
+           color: var(--accent); border-radius: 99px; padding: 10px 18px; font-variant-numeric: tabular-nums; }
+  .timer.running { background: var(--accent); color: var(--accent-ink); }
+  .timer.ring { animation: ring .5s ease-in-out infinite alternate; }
+  @keyframes ring { to { transform: scale(1.06); } }
+  .cook-nav { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; max-width: 640px; margin: 0 auto; width: 100%; }
+  .cook-nav .btn { padding: 16px; font-size: 16px; }
+  .cook-ings { font-size: 14px; color: var(--soft); }
+
+  .toast { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+           background: var(--ink); color: var(--paper); padding: 10px 18px; border-radius: 99px; font-size: 14px; z-index: 20; }
+  .fade { animation: fade .35s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+  @media (prefers-reduced-motion: reduce) { .fade, .timer.ring { animation: none; } }
 </style>
 </head>
 <body>
-<main>
-  <header><a href="#/">🍳</a><h1><a href="#/">Mes Recettes</a></h1></header>
-  <div id="view"></div>
-</main>
+<main id="view"></main>
 <script>
 const $view = document.getElementById("view");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const api = (path, opts = {}) => fetch(path, { headers: { "Content-Type": "application/json" }, ...opts })
   .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || r.statusText))));
+let timer, activeTag = "";
 
-// Hors ligne : on garde une copie des recettes sur l'appareil pour les consulter Mac éteint.
+const ICONS = {
+  bowl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 11h18a9 9 0 0 1-18 0Z"/><path d="M8 7c0-1.5 1-2 1-3.5M12 7c0-1.5 1-2 1-3.5M16 7c0-1.5 1-2 1-3.5"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  pan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="13" r="7"/><path d="M17 13h5"/></svg>',
+  book: '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14c8-3 16-3 22 2v36c-6-5-14-5-22-2Z"/><path d="M54 14c-8-3-16-3-22 2v36c6-5 14-5 22-2Z"/><path d="M38 24c4-1 7-1 10 0M38 31c4-1 7-1 10 0"/></svg>',
+};
+
+/* ---------- Thème clair / sombre (suit le système, ou le choix de l'utilisateur) ---------- */
+function getTheme() { try { return localStorage.getItem("theme"); } catch { return null; } }
+function applyTheme(t) {
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+}
+const isDark = () => document.documentElement.dataset.theme === "dark" ||
+  (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+function toggleTheme() {
+  const next = isDark() ? "light" : "dark";
+  applyTheme(next); try { localStorage.setItem("theme", next); } catch {}
+  route();
+}
+applyTheme(getTheme());
+
+/* ---------- Hors ligne : copie locale des recettes ---------- */
 const STORE = "recipes-cache";
 let offline = false;
 const readStore = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
@@ -92,23 +213,17 @@ const writeStore = list => { try { localStorage.setItem(STORE, JSON.stringify(li
 async function getJSON(path) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 4000);
-  try {
-    const res = await api(path, { signal: ctrl.signal });
-    offline = false;
-    return res;
-  } catch (e) {
+  try { const res = await api(path, { signal: ctrl.signal }); offline = false; return res; }
+  catch (e) {
     if (e.name !== "AbortError" && !(e instanceof TypeError)) throw e;  // vraie erreur serveur (404...)
-    offline = true;
-    return null;
+    offline = true; return null;
   } finally { clearTimeout(t); }
 }
-
 async function loadList() {
   const list = await getJSON("/api/recipes");
   if (list) { writeStore(list); return list; }
   return readStore();
 }
-
 async function loadRecipe(id) {
   const r = await getJSON(`/api/recipes/${id}`);
   if (r) {
@@ -116,20 +231,17 @@ async function loadRecipe(id) {
     return r;
   }
   const cached = readStore().find(x => x.id === id);
-  if (!cached) throw new Error("Recette indisponible hors ligne.");
+  if (!cached) throw new Error("Cette recette n'est pas disponible hors ligne.");
   return cached;
 }
-
 const offlineBanner = () => offline
-  ? `<div class="offline">📴 Mac injoignable : consultation seule. Allume le Mac pour ajouter des recettes.</div>` : "";
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let timer;
+  ? `<div class="offline">Mac injoignable : tu consultes ton carnet hors ligne. Allume le Mac pour ajouter des recettes.</div>` : "";
 
+/* ---------- Utilitaires ---------- */
 function toast(msg) {
-  const t = Object.assign(document.createElement("div"), { className: "toast", textContent: msg });
+  const t = Object.assign(document.createElement("div"), { className: "toast fade", textContent: msg });
   document.body.append(t); setTimeout(() => t.remove(), 2200);
 }
-
 function fmtQty(q) {
   if (q == null) return "";
   const r = Math.round(q * 100) / 100;
@@ -138,71 +250,101 @@ function fmtQty(q) {
   if (fr[frac]) return (whole || "") + fr[frac];
   return r.toLocaleString("fr-FR");
 }
-
 // Les ingrédients comptés à la pièce (œufs, gousses...) restent des nombres entiers
 const isCount = i => !i.unit || /^pi[eè]ces?$/i.test(i.unit.trim());
 const unitLabel = i => isCount(i) ? "" : i.unit;
 const scaled = (i, ratio) => i.quantity == null ? null
   : isCount(i) && Number.isInteger(i.quantity) ? Math.max(1, Math.round(i.quantity * ratio)) : i.quantity * ratio;
+const minutes = m => m == null ? "–" : m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) : ""}` : `${m} min`;
+const total = d => (d.prep_minutes || 0) + (d.cook_minutes || 0) || null;
+const photo = r => `<div class="photo" style="${r.thumbnail ? `background-image:url('${esc(r.thumbnail)}')` : ""}">
+  ${r.thumbnail ? "" : r.status === "pending" ? '<div class="spinner"></div>' : ICONS.bowl}</div>`;
+const today = () => new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 
-const minutes = m => m == null ? "–" : m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? m % 60 : ""}` : `${m} min`;
-
+/* ---------- Accueil ---------- */
 async function home() {
   const list = await loadList();
-  $view.innerHTML = `${offlineBanner()}
-    <form id="add" ${offline ? "hidden" : ""}>
-      <input type="url" name="url" placeholder="Colle un lien TikTok, Instagram, YouTube…" required>
-      <button>Importer</button>
-    </form>
-    ${list.length > 3 ? `<form><input type="search" id="q" placeholder="Rechercher une recette, un ingrédient…"></form>` : ""}
-    <div class="grid">${list.map(card).join("") || `<p class="meta">Aucune recette pour l'instant. Colle le lien d'une vidéo pour commencer.</p>`}</div>`;
+  const done = list.filter(r => r.status === "done" && r.data?.is_recipe);
+  const tags = [...new Set(done.flatMap(r => r.data.tags || []))].slice(0, 12);
+  if (activeTag && !tags.includes(activeTag)) activeTag = "";
+
+  const header = `<div class="top"><div><div class="eyebrow">${esc(today())}</div>
+      <h1>Ton carnet<br><em>de cuisine</em></h1></div>
+      <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div>
+    ${offlineBanner()}
+    <form class="import" id="add" ${offline ? "hidden" : ""}>
+      <input type="url" name="url" placeholder="Colle un lien TikTok, Instagram…" required aria-label="Lien de la vidéo">
+      <button class="btn">Ajouter</button>
+    </form>`;
+
+  if (!list.length) {
+    $view.innerHTML = header + `<div class="empty fade">${ICONS.book}
+      <h2>Ton carnet t'attend</h2>
+      <p>Colle le lien d'une vidéo de recette : on la regarde pour toi et on y écrit la recette, ingrédients et étapes compris.</p></div>`;
+  } else {
+    const shown = list.filter(r => !activeTag || (r.data?.tags || []).includes(activeTag));
+    const [first, ...rest] = shown;
+    $view.innerHTML = header + `
+      ${tags.length > 1 ? `<div class="chips"><button class="chip ${activeTag ? "" : "on"}" data-tag="">Tout</button>
+        ${tags.map(t => `<button class="chip ${t === activeTag ? "on" : ""}" data-tag="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}
+      <div class="fade">${first ? feature(first) : ""}
+      ${rest.length ? `<div class="rule eyebrow">Dans ton carnet</div><div class="grid">${rest.map(card).join("")}</div>` : ""}</div>`;
+    $view.querySelectorAll("[data-tag]").forEach(b => b.onclick = () => { activeTag = b.dataset.tag; home(); });
+  }
+
+  document.getElementById("theme").onclick = toggleTheme;
   document.getElementById("add").onsubmit = async e => {
     e.preventDefault();
     try {
       const rec = await api("/api/recipes", { method: "POST", body: JSON.stringify({ url: e.target.url.value }) });
-      location.hash = `#/r/${rec.id}`;
+      go(`#/r/${rec.id}`);
     } catch (err) { toast(err.message); }
-  };
-  const q = document.getElementById("q");
-  if (q) q.oninput = () => {
-    const term = q.value.toLowerCase();
-    document.querySelectorAll(".card").forEach(c => c.style.display = c.dataset.search.includes(term) ? "" : "none");
   };
   if (!offline && list.some(r => r.status === "pending")) timer = setTimeout(route, 3000);
 }
 
+function label(r) {
+  if (r.status === "pending") return { title: "En cours d'écriture…", meta: "On regarde la vidéo" };
+  if (r.status === "error") return { title: "Import impossible", meta: "Touche pour réessayer" };
+  const d = r.data;
+  return { title: d.title, meta: [minutes(total(d)), d.difficulty, r.author && "@" + r.author].filter(Boolean).join(" · ") };
+}
+function feature(r) {
+  const l = label(r);
+  return `<a class="feature" href="#/r/${r.id}">${photo(r)}
+    <div class="eyebrow" style="margin-top:14px">${r.status === "done" ? "Dernière ajoutée" : ""}</div>
+    <h2>${esc(l.title)}</h2><div class="meta">${esc(l.meta)}</div></a>`;
+}
 function card(r) {
-  const d = r.data || {};
-  const title = r.status === "pending" ? "Analyse en cours…" : r.status === "error" ? "Échec de l'import" : d.title;
-  const search = [d.title, ...(d.tags || []), ...(d.ingredients || []).map(i => i.name), r.author].join(" ").toLowerCase();
-  return `<a class="card" href="#/r/${r.id}" data-search="${esc(search)}">
-    <div class="thumb" style="${r.thumbnail ? `background-image:url('${esc(r.thumbnail)}')` : ""}">
-      ${r.thumbnail ? "" : r.status === "pending" ? '<div class="spinner"></div>' : "🍽️"}</div>
-    <div class="body"><h3 class="${r.status === "error" ? "err" : ""}">${esc(title)}</h3>
-      <div class="meta">${esc(r.author || r.url)}</div>
-      <div>${(d.tags || []).slice(0, 3).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div></div></a>`;
+  const l = label(r);
+  return `<a class="card ${r.status === "error" ? "err" : ""}" href="#/r/${r.id}">${photo(r)}
+    <h3>${esc(l.title)}</h3><div class="meta">${esc(l.meta)}</div></a>`;
 }
 
+/* ---------- Fiche recette ---------- */
 async function detail(id) {
   const r = await loadRecipe(id);
+  const back = `<button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button>`;
   if (r.status === "pending") {
-    $view.innerHTML = `<div class="center"><div class="spinner"></div>
-      <p><b>On regarde la vidéo pour toi…</b><br><span class="meta">Téléchargement, lecture du texte à l'écran, transcription et rédaction de la recette (30 s à 2 min).</span></p></div>`;
-    timer = setTimeout(route, 3000); return;
+    $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><div class="spinner"></div>
+      <h2>On regarde la vidéo pour toi…</h2>
+      <p class="meta">Lecture du texte à l'écran, écoute de l'audio,<br>puis écriture de la recette. 30 s à 2 min.</p></div>`;
+    bindBack(); timer = setTimeout(route, 3000); return;
   }
   if (r.status === "error") {
-    $view.innerHTML = `<div class="center"><p class="err"><b>Impossible d'importer cette vidéo.</b></p>
-      <p class="meta">${esc(r.error)}</p><div class="actions">
-      <button id="retry">Réessayer</button><button class="ghost" id="del">Supprimer</button></div></div>`;
+    $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><h2>Import impossible</h2>
+      <p class="meta" style="max-width:420px">${esc(r.error)}</p><div class="actions">
+      <button class="btn" id="retry">Réessayer</button><button class="btn ghost" id="del">Supprimer</button></div></div>`;
     document.getElementById("retry").onclick = () => api(`/api/recipes/${id}/retry`, { method: "POST" }).then(route);
-    bindDelete(id); return;
+    bindBack(); bindDelete(id); return;
   }
   const d = r.data;
   if (!d.is_recipe) {
-    $view.innerHTML = `<div class="center"><p><b>Pas de recette trouvée dans cette vidéo.</b></p>
-      <p class="meta">${esc(d.summary)}</p><button class="ghost" id="del">Supprimer</button></div>`;
-    bindDelete(id); return;
+    $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><h2>Pas de recette dans cette vidéo</h2>
+      <p class="meta" style="max-width:420px">${esc(d.summary)}</p><button class="btn ghost" id="del">Supprimer</button></div>`;
+    bindBack(); bindDelete(id); return;
   }
+
   const base = d.servings || 1;
   let servings = base;
   const checked = new Set();
@@ -212,33 +354,33 @@ async function detail(id) {
     const sections = [...new Set(d.ingredients.map(i => i.section || ""))];
     const ingHtml = sections.map(s => `${s ? `<h4>${esc(s)}</h4>` : ""}<ul class="ing">${
       d.ingredients.map((i, idx) => ({ i, idx })).filter(({ i }) => (i.section || "") === s).map(({ i, idx }) => `
-        <li data-idx="${idx}" class="${checked.has(idx) ? "done" : ""}">
+        <li data-idx="${idx}" class="${checked.has(idx) ? "done" : ""}"><span class="box"></span>
           <span class="q">${esc(fmtQty(scaled(i, ratio)))} ${esc(unitLabel(i))}</span>
-          <span>${esc(i.name)}${i.note ? ` <span class="meta">— ${esc(i.note)}</span>` : ""}</span></li>`).join("")}</ul>`).join("");
+          <span class="name">${esc(i.name)}${i.note ? ` <span class="meta">— ${esc(i.note)}</span>` : ""}</span></li>`).join("")}</ul>`).join("");
 
-    $view.innerHTML = `${offlineBanner()}
-      <div class="hero">
-        <div>${(d.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
-        <h2>${esc(d.title)}</h2>
-        <p class="meta">${esc(d.summary)}</p>
-        <p class="meta">Par <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.author || "la vidéo originale")}</a> · ${esc(r.platform)}</p>
-      </div>
+    $view.innerHTML = `<div class="detail">
+      <div class="hero">${photo(r)}<button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
+      <div class="eyebrow">${(d.tags || []).map(esc).join(" · ")}</div>
+      <h2>${esc(d.title)}</h2>
+      <p class="summary">${esc(d.summary)}</p>
+      <div class="meta">Une recette de <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.author ? "@" + r.author : "la vidéo originale")}</a></div>
       <div class="facts">
-        <div class="fact"><b>Préparation</b>${minutes(d.prep_minutes)}</div>
-        <div class="fact"><b>Cuisson</b>${minutes(d.cook_minutes)}</div>
-        <div class="fact"><b>Difficulté</b>${esc(d.difficulty || "–")}</div>
+        <div><span class="eyebrow">Préparation</span><b>${minutes(d.prep_minutes)}</b></div>
+        <div><span class="eyebrow">Cuisson</span><b>${minutes(d.cook_minutes)}</b></div>
+        <div><span class="eyebrow">Niveau</span><b>${esc(d.difficulty || "–")}</b></div>
       </div>
-      <section>
-        <h3>Ingrédients <span class="stepper"><button class="ghost" data-s="-1">−</button>
-          ${servings} pers.<button class="ghost" data-s="1">+</button></span></h3>
-        ${ingHtml}
-      </section>
-      <section><h3>Étapes</h3><ol class="steps">${d.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol></section>
-      ${d.tips?.length ? `<section><h3>Astuces</h3><ul>${d.tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul></section>` : ""}
+      <button class="btn cook-cta" id="cook">${ICONS.pan} Commencer à cuisiner</button>
+      <div class="sec-title"><h3>Ingrédients</h3>
+        <div class="stepper"><button data-s="-1" aria-label="Moins de personnes">−</button>
+        <span>${servings} pers.</span><button data-s="1" aria-label="Plus de personnes">+</button></div></div>
+      ${ingHtml}
+      <div class="sec-title"><h3>Préparation</h3></div>
+      <ol class="steps">${d.steps.map(s => `<li><span>${esc(s)}</span></li>`).join("")}</ol>
+      ${d.tips?.length ? `<div class="note"><h3>Le mot du chef</h3><ul>${d.tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>` : ""}
       <div class="actions">
-        <button id="copy">Copier la liste de courses</button>
-        ${offline ? "" : `<button class="ghost" id="del">Supprimer</button>`}
-      </div>`;
+        <button class="btn ghost" id="copy">Copier la liste de courses</button>
+        ${offline ? "" : `<button class="btn ghost" id="del">Supprimer</button>`}
+      </div></div>`;
 
     $view.querySelectorAll("[data-s]").forEach(b => b.onclick = () => {
       servings = Math.max(1, servings + Number(b.dataset.s)); render();
@@ -249,27 +391,104 @@ async function detail(id) {
     document.getElementById("copy").onclick = () => {
       const lines = d.ingredients.filter((_, i) => !checked.has(i)).map(i =>
         `- ${[fmtQty(scaled(i, ratio)), unitLabel(i), i.name].filter(Boolean).join(" ")}`);
-      navigator.clipboard.writeText(`${d.title} (${servings} pers.)\n${lines.join("\n")}`).then(() => toast("Liste copiée ✔"));
+      navigator.clipboard.writeText(`${d.title} (${servings} pers.)\n${lines.join("\n")}`).then(() => toast("Liste copiée"));
     };
-    bindDelete(id);
+    document.getElementById("cook").onclick = () => cookMode(d, ratio);
+    bindBack(); bindDelete(id);
   };
   render();
+  scrollTo(0, 0);
 }
 
+function bindBack() { const b = document.getElementById("back"); if (b) b.onclick = () => go("#/"); }
 function bindDelete(id) {
   const b = document.getElementById("del");
   if (b) b.onclick = async () => {
-    if (!confirm("Supprimer cette recette ?")) return;
-    await api(`/api/recipes/${id}`, { method: "DELETE" }); location.hash = "#/";
+    if (!confirm("Retirer cette recette de ton carnet ?")) return;
+    await api(`/api/recipes/${id}`, { method: "DELETE" }); go("#/");
   };
 }
 
+/* ---------- Mode cuisine : une étape à la fois, écran allumé, minuteurs ---------- */
+function findDuration(text) {
+  const m = text.match(/(\d+(?:[.,]\d+)?)\s*(?:à\s*\d+\s*)?(h|heures?|min(?:utes?)?|s(?:ec(?:ondes?)?)?)\b/i);
+  if (!m) return null;
+  const n = parseFloat(m[1].replace(",", ".")), u = m[2].toLowerCase();
+  return Math.round(u.startsWith("h") ? n * 3600 : u.startsWith("m") ? n * 60 : n);
+}
+const fmtTime = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+async function cookMode(d, ratio) {
+  let i = 0, lock = null, tick = null, left = 0;
+  try { lock = await navigator.wakeLock?.request("screen"); } catch {}
+  const el = document.createElement("div");
+  el.className = "cook fade";
+  document.body.append(el);
+  document.body.style.overflow = "hidden";
+
+  const close = () => { clearInterval(tick); lock?.release?.(); el.remove(); document.body.style.overflow = ""; };
+  const draw = () => {
+    clearInterval(tick); tick = null;
+    const step = d.steps[i], dur = findDuration(step);
+    left = dur || 0;
+    // Rappel des quantités des ingrédients cités dans l'étape
+    const words = new Set(step.toLowerCase().split(/[^a-zà-ÿœæ]+/));
+    const mentioned = x => {
+      const key = x.name.toLowerCase().split(/[^a-zà-ÿœæ]+/).find(w => w.length > 2);
+      return key && (words.has(key) || words.has(key + "s") || words.has(key.replace(/s$/, "")));
+    };
+    const ings = d.ingredients.filter(mentioned)
+      .map(x => [fmtQty(scaled(x, ratio)), unitLabel(x), x.name].filter(Boolean).join(" "));
+    el.innerHTML = `<div class="cook-head"><span class="eyebrow">Étape ${i + 1} sur ${d.steps.length}</span>
+        <button class="icon-btn" id="x" aria-label="Quitter le mode cuisine">${ICONS.close}</button></div>
+      <div class="progress"><i style="width:${(i + 1) / d.steps.length * 100}%"></i></div>
+      <div class="cook-body"><div class="cook-num">${String(i + 1).padStart(2, "0")}</div>
+        <div class="cook-text">${esc(step)}</div>
+        ${ings.length ? `<div class="cook-ings">${ings.map(esc).join(" · ")}</div>` : ""}
+        ${dur ? `<button class="timer" id="t" style="margin-top:22px">Minuteur ${fmtTime(dur)}</button>` : ""}</div>
+      <div class="cook-nav"><button class="btn ghost" id="prev" ${i ? "" : 'style="visibility:hidden"'}>Précédente</button>
+        <button class="btn" id="next">${i < d.steps.length - 1 ? "Étape suivante" : "Bon appétit"}</button></div>`;
+    el.querySelector("#x").onclick = close;
+    el.querySelector("#prev").onclick = () => { i--; draw(); };
+    el.querySelector("#next").onclick = () => { if (i < d.steps.length - 1) { i++; draw(); } else close(); };
+    const t = el.querySelector("#t");
+    if (t) t.onclick = () => {
+      if (tick) { clearInterval(tick); tick = null; t.classList.remove("running", "ring"); left = dur; t.textContent = `Minuteur ${fmtTime(dur)}`; return; }
+      t.classList.add("running");
+      t.textContent = fmtTime(left);
+      tick = setInterval(() => {
+        left--;
+        t.textContent = left > 0 ? fmtTime(left) : "C'est prêt";
+        if (left <= 0) { clearInterval(tick); tick = null; t.classList.add("ring"); navigator.vibrate?.([300, 150, 300]); beep(); }
+      }, 1000);
+    };
+  };
+  draw();
+}
+function beep() {
+  try {
+    const ctx = new AudioContext();
+    [0, .35, .7].forEach(at => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(.2, ctx.currentTime + at); g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + at + .3);
+      o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + .3);
+    });
+  } catch {}
+}
+
+/* ---------- Navigation ---------- */
+function go(hash) {
+  if (document.startViewTransition) document.startViewTransition(() => { location.hash = hash; });
+  else location.hash = hash;
+}
 function route() {
   clearTimeout(timer);
   const m = location.hash.match(/^#\/r\/(\w+)/);
-  (m ? detail(m[1]) : home()).catch(e => $view.innerHTML = `<p class="err">${esc(e.message)}</p>`);
+  (m ? detail(m[1]) : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
 }
 addEventListener("hashchange", route);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!getTheme()) route(); });
 route();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 </script>
