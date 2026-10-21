@@ -11,9 +11,24 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import db
-from .extractor import extract_recipe
-from .media import fetch
+
+
+def _load_env(path: str) -> None:
+    """Charge le fichier .env (KEY=valeur) sans écraser les variables déjà définies."""
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        for line in f:
+            key, sep, value = line.strip().partition("=")
+            if sep and key and not key.startswith("#"):
+                os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_env(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
+from . import db  # noqa: E402
+from .extractor import extract_recipe  # noqa: E402
+from .media import fetch  # noqa: E402
 
 STATIC = os.path.join(os.path.dirname(__file__), "..", "frontend")
 URL_RE = re.compile(r"https?://\S+")

@@ -29,7 +29,7 @@ légende + audio + images, puis demander à un LLM de structurer le tout.
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...      # https://console.anthropic.com
+cp .env.example .env    # puis colle ta clé (https://console.anthropic.com) dans .env
 .venv/bin/uvicorn backend.app:app --host 0.0.0.0 --port 8765
 ```
 
