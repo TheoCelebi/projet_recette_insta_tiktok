@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import os
 import re
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, HTTPException
@@ -31,6 +33,8 @@ from .extractor import extract_recipe  # noqa: E402
 from .media import fetch  # noqa: E402
 
 STATIC = os.path.join(os.path.dirname(__file__), "..", "frontend")
+THUMBS = os.environ.get("THUMBS_DIR", os.path.join(os.path.dirname(__file__), "..", "thumbs"))
+os.makedirs(THUMBS, exist_ok=True)
 URL_RE = re.compile(r"https?://\S+")
 
 app = FastAPI(title="Recettes")
@@ -38,12 +42,33 @@ pool = ThreadPoolExecutor(max_workers=2)
 db.init()
 
 
+def save_thumbnail(rid: str, remote_url: str, fallback_frame: str | None = None) -> str:
+    """Copie locale de la miniature : les URL des CDN TikTok/Instagram expirent vite,
+    et une image servie par nous peut être gardée en cache sur le téléphone (hors ligne)."""
+    data = None
+    if remote_url:
+        try:
+            req = urllib.request.Request(remote_url, headers={"User-Agent": "Mozilla/5.0"})
+            data = urllib.request.urlopen(req, timeout=15).read()
+        except Exception:  # noqa: BLE001
+            data = None
+    if not data and fallback_frame:
+        data = base64.standard_b64decode(fallback_frame)
+    if not data:
+        return ""
+    with open(os.path.join(THUMBS, f"{rid}.jpg"), "wb") as f:
+        f.write(data)
+    return f"/thumbs/{rid}.jpg"
+
+
 def process(rid: str, url: str) -> None:
     try:
         media = fetch(url)
         recipe = extract_recipe(media)
+        frame = media.frames[len(media.frames) // 2] if media.frames else None
         db.update(rid, status="done", data=recipe.model_dump(), author=media.author,
-                  platform=media.platform, thumbnail=media.thumbnail, url=media.url)
+                  platform=media.platform, thumbnail=save_thumbnail(rid, media.thumbnail, frame),
+                  url=media.url)
     except Exception as e:  # noqa: BLE001 - on remonte l'erreur à l'utilisateur
         msg = str(e)
         if "authentication method" in msg or "invalid x-api-key" in msg:
@@ -112,4 +137,19 @@ def index():
     return FileResponse(os.path.join(STATIC, "index.html"))
 
 
+@app.get("/sw.js")
+def service_worker():
+    # Servi à la racine pour que le service worker contrôle toute l'appli
+    return FileResponse(os.path.join(STATIC, "sw.js"), media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache"})
+
+
+def _backfill_thumbnails() -> None:
+    for r in db.list_all():
+        if (r["thumbnail"] or "").startswith("http"):
+            db.update(r["id"], thumbnail=save_thumbnail(r["id"], r["thumbnail"]))
+
+
+pool.submit(_backfill_thumbnails)
+app.mount("/thumbs", StaticFiles(directory=THUMBS), name="thumbs")
 app.mount("/", StaticFiles(directory=STATIC), name="static")

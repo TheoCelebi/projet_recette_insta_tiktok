@@ -7,6 +7,8 @@
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#e8590c">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Recettes">
+<link rel="apple-touch-icon" href="/icon-180.png">
 <style>
   :root {
     --bg: #faf7f2; --card: #ffffff; --ink: #2b2118; --muted: #8a7b6d;
@@ -65,6 +67,8 @@
            font-size: 14px; font-weight: 700; }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .center { display: grid; place-items: center; gap: 12px; padding: 40px 0; text-align: center; }
+  .offline { background: var(--accent-soft); color: var(--accent); border-radius: 12px; padding: 10px 14px;
+             font-size: 14px; margin-bottom: 16px; }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink);
            color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; }
 </style>
@@ -78,6 +82,46 @@
 const $view = document.getElementById("view");
 const api = (path, opts = {}) => fetch(path, { headers: { "Content-Type": "application/json" }, ...opts })
   .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || r.statusText))));
+
+// Hors ligne : on garde une copie des recettes sur l'appareil pour les consulter Mac éteint.
+const STORE = "recipes-cache";
+let offline = false;
+const readStore = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
+const writeStore = list => { try { localStorage.setItem(STORE, JSON.stringify(list.filter(r => r.status === "done"))); } catch {} };
+
+async function getJSON(path) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const res = await api(path, { signal: ctrl.signal });
+    offline = false;
+    return res;
+  } catch (e) {
+    if (e.name !== "AbortError" && !(e instanceof TypeError)) throw e;  // vraie erreur serveur (404...)
+    offline = true;
+    return null;
+  } finally { clearTimeout(t); }
+}
+
+async function loadList() {
+  const list = await getJSON("/api/recipes");
+  if (list) { writeStore(list); return list; }
+  return readStore();
+}
+
+async function loadRecipe(id) {
+  const r = await getJSON(`/api/recipes/${id}`);
+  if (r) {
+    if (r.status === "done") writeStore([r, ...readStore().filter(x => x.id !== id)].sort((a, b) => b.created_at - a.created_at));
+    return r;
+  }
+  const cached = readStore().find(x => x.id === id);
+  if (!cached) throw new Error("Recette indisponible hors ligne.");
+  return cached;
+}
+
+const offlineBanner = () => offline
+  ? `<div class="offline">📴 Mac injoignable : consultation seule. Allume le Mac pour ajouter des recettes.</div>` : "";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let timer;
 
@@ -104,9 +148,9 @@ const scaled = (i, ratio) => i.quantity == null ? null
 const minutes = m => m == null ? "–" : m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? m % 60 : ""}` : `${m} min`;
 
 async function home() {
-  const list = await api("/api/recipes");
-  $view.innerHTML = `
-    <form id="add">
+  const list = await loadList();
+  $view.innerHTML = `${offlineBanner()}
+    <form id="add" ${offline ? "hidden" : ""}>
       <input type="url" name="url" placeholder="Colle un lien TikTok, Instagram, YouTube…" required>
       <button>Importer</button>
     </form>
@@ -124,7 +168,7 @@ async function home() {
     const term = q.value.toLowerCase();
     document.querySelectorAll(".card").forEach(c => c.style.display = c.dataset.search.includes(term) ? "" : "none");
   };
-  if (list.some(r => r.status === "pending")) timer = setTimeout(route, 3000);
+  if (!offline && list.some(r => r.status === "pending")) timer = setTimeout(route, 3000);
 }
 
 function card(r) {
@@ -140,7 +184,7 @@ function card(r) {
 }
 
 async function detail(id) {
-  const r = await api(`/api/recipes/${id}`);
+  const r = await loadRecipe(id);
   if (r.status === "pending") {
     $view.innerHTML = `<div class="center"><div class="spinner"></div>
       <p><b>On regarde la vidéo pour toi…</b><br><span class="meta">Téléchargement, lecture du texte à l'écran, transcription et rédaction de la recette (30 s à 2 min).</span></p></div>`;
@@ -172,7 +216,7 @@ async function detail(id) {
           <span class="q">${esc(fmtQty(scaled(i, ratio)))} ${esc(unitLabel(i))}</span>
           <span>${esc(i.name)}${i.note ? ` <span class="meta">— ${esc(i.note)}</span>` : ""}</span></li>`).join("")}</ul>`).join("");
 
-    $view.innerHTML = `
+    $view.innerHTML = `${offlineBanner()}
       <div class="hero">
         <div>${(d.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
         <h2>${esc(d.title)}</h2>
@@ -193,7 +237,7 @@ async function detail(id) {
       ${d.tips?.length ? `<section><h3>Astuces</h3><ul>${d.tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul></section>` : ""}
       <div class="actions">
         <button id="copy">Copier la liste de courses</button>
-        <button class="ghost" id="del">Supprimer</button>
+        ${offline ? "" : `<button class="ghost" id="del">Supprimer</button>`}
       </div>`;
 
     $view.querySelectorAll("[data-s]").forEach(b => b.onclick = () => {
@@ -227,6 +271,7 @@ function route() {
 }
 addEventListener("hashchange", route);
 route();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 </script>
 </body>
 </html>

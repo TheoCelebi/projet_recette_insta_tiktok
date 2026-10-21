@@ -53,17 +53,30 @@ Options (variables d'environnement) :
   Instagram qui bloque souvent les requêtes non connectées.
 - `RECIPES_DB` : chemin de la base SQLite.
 
-## Sur le téléphone
+## Sur l'iPhone, partout (Tailscale)
 
-Le Mac et le téléphone sur le même Wi-Fi, ouvre `http://<ip-du-mac>:8765`
-(IP : `ipconfig getifaddr en0`).
+[Tailscale](https://tailscale.com) relie le Mac et l'iPhone dans un réseau privé : l'appli
+est accessible en Wi-Fi comme en 4G, sans IP à taper, et sans l'exposer sur Internet.
 
-- **Android** : Chrome → « Ajouter à l'écran d'accueil ». L'appli apparaît ensuite dans
-  le menu *Partager* de TikTok/Instagram (manifest `share_target`).
-- **iPhone** : Safari ne gère pas `share_target`. Crée un Raccourci *« Recette »* :
-  *Recevoir les URL depuis la feuille de partage* → *Ouvrir l'URL*
-  `http://<ip-du-mac>:8765/share?url=[Entrée du raccourci]`. Il apparaît alors dans le
-  menu Partager de TikTok.
+1. Installe Tailscale sur le Mac et sur l'iPhone, connecte-les au même compte.
+2. Dans la console Tailscale (*DNS*), active **MagicDNS** et **HTTPS Certificates**.
+3. Sur le Mac, publie l'appli en HTTPS dans ton réseau Tailscale :
+   ```bash
+   tailscale serve --bg 8765
+   ```
+   L'adresse affichée ressemble à `https://mon-mac.tailXXXX.ts.net`.
+4. Sur l'iPhone, ouvre cette adresse dans Safari → *Partager* → **Sur l'écran d'accueil**.
+
+**Mac éteint** : l'appli s'ouvre quand même et affiche les recettes déjà importées
+(copie gardée sur le téléphone, photos comprises). Seul l'ajout de recettes demande le Mac
+allumé avec le serveur lancé. Le HTTPS est nécessaire pour ce mode hors ligne.
+
+**Importer depuis TikTok** : crée un Raccourci *« Recette »* : *Recevoir les URL depuis la
+feuille de partage* → *Ouvrir l'URL* `https://mon-mac.tailXXXX.ts.net/share?url=[Entrée du raccourci]`.
+Il apparaît alors dans le menu Partager de TikTok/Instagram.
+
+Sur Android, *Ajouter à l'écran d'accueil* depuis Chrome suffit : l'appli apparaît
+directement dans le menu Partager (manifest `share_target`).
 
 ## Limites connues
 
