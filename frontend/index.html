@@ -286,7 +286,8 @@ const STORE = "recipes-cache";
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
              set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 let offline = ls.get("offline-hint") === "1";  // dernier état connu, pour le premier affichage
-let navToken = 0;                               // invalide les rafraîchissements d'un écran quitté
+let navToken = 0;
+const RETRY_MS = 10000;                         // hors ligne : on retente de joindre le Mac                               // invalide les rafraîchissements d'un écran quitté
 const readStore = () => { try { return JSON.parse(ls.get(STORE)) || []; } catch { return []; } };
 const writeStore = list => ls.set(STORE, JSON.stringify(list.filter(r => r.status === "done")));
 
@@ -349,7 +350,7 @@ async function home() {
   const list = fresh || cached, folders = freshF || cachedF;
   if (JSON.stringify([list, folders, offline]) !== state) renderHome(list, folders);
   const busy = list.some(r => r.status === "pending" || r.nutrition_status === "pending") || folders.some(f => f.status === "sorting");
-  if (!offline && busy) timer = setTimeout(route, 4000);
+  timer = offline ? setTimeout(route, RETRY_MS) : busy ? setTimeout(route, 4000) : timer;
 }
 
 function folderTile(f) {
@@ -445,7 +446,8 @@ async function detail(id) {
   const r = fresh || cached;
   if (!r) throw new Error("Cette recette n'est pas disponible hors ligne.");
   if (JSON.stringify([r, readFolders(), offline]) !== state) renderDetail(r);
-  if (!offline && (r.status === "pending" || r.nutrition_status === "pending")) timer = setTimeout(route, 4000);
+  const busy = r.status === "pending" || r.nutrition_status === "pending";
+  timer = offline ? setTimeout(route, RETRY_MS) : busy ? setTimeout(route, 4000) : timer;
 }
 
 function renderDetail(r) {
@@ -659,7 +661,7 @@ async function folderPage(fid) {
   if (!f) { go("#/"); return; }  // dossier supprimé entre-temps
   const recipes = list || cl;
   if (JSON.stringify([f, recipes, offline]) !== state) renderFolder(f, recipes);
-  if (!offline && f.status === "sorting") timer = setTimeout(route, 4000);
+  timer = offline ? setTimeout(route, RETRY_MS) : f.status === "sorting" ? setTimeout(route, 4000) : timer;
 }
 
 function renderFolder(f, list) {
@@ -836,6 +838,9 @@ function route() {
   (m ? detail(m[1]) : fm ? folderPage(fm[1]) : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
 }
 addEventListener("hashchange", route);
+// Retour sur l'appli ou retour du réseau : on revérifie tout de suite si le Mac répond
+addEventListener("online", () => offline && route());
+document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && offline && route());
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!getTheme()) route(); });
 route();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
