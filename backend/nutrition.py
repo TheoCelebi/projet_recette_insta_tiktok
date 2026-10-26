@@ -15,6 +15,9 @@ from pydantic import BaseModel, Field
 
 from .ai import structured
 
+# À incrémenter quand la méthode de calcul change : les recettes sont alors recalculées
+VERSION = 2
+
 # Clés des nutriments, dans l'ordre d'affichage
 NUTRIENTS = [
     "kcal", "protein_g", "carbs_g", "sugars_g", "fat_g", "saturated_fat_g", "fiber_g", "salt_g",
@@ -43,8 +46,10 @@ poids cru/sec ; utilise alors les valeurs du produit sec.
 et mets quantity_estimated à true.
 - Ce qui n'est pas mangé ne compte pas : eau de cuisson jetée, marinade jetée, bouquet garni. \
 Friture : seulement l'huile absorbée. Sel de l'eau de cuisson : seulement la petite part absorbée.
-- Ingrédient au choix (« pennes ou spaghettis ») : prends le premier. Ingrédient présenté comme \
-facultatif : ne le compte pas (grams à 0) et signale-le dans notes.
+- Ingrédient au choix (« pennes ou spaghettis ») : prends le premier.
+- Ingrédient ou préparation présenté comme facultatif / optionnel (y compris une section entière, \
+ex. « Sauce (optionnel) ») : compte-le quand même avec une quantité réaliste, comme dans la vidéo, \
+et mets optional à true. Seuls le sel, le poivre et les épices « au goût » peuvent être négligeables.
 - Donne les valeurs pour la quantité de l'ingrédient (pas pour 100 g), d'après les tables de \
 composition de référence (Ciqual de l'ANSES, USDA).
 - Vérifie la cohérence : kcal ≈ 4 × protéines + 4 × glucides + 9 × lipides + 2 × fibres.
@@ -67,6 +72,7 @@ class IngredientNutrition(BaseModel):
     ingredient: str = Field(description="Nom de l'ingrédient, tel que dans la recette")
     grams: float = Field(description="Poids réellement consommé, en grammes")
     quantity_estimated: bool = Field(description="true si la quantité n'était pas donnée")
+    optional: bool = Field(description="true si l'ingrédient est présenté comme facultatif")
     kcal: float
     protein_g: float
     carbs_g: float
@@ -104,10 +110,9 @@ def _r(x: float, nd: int = 1) -> float:
     return round(x, nd)
 
 
-def summarize(a: NutritionAnalysis, recipe_servings: int | None) -> dict:
-    """Totaux, valeurs par portion et pour 100 g, macros, repères sportifs."""
-    servings = max(1, recipe_servings or a.servings or 1)
-    total = {k: sum(getattr(i, k) for i in a.ingredients) for k in NUTRIENTS}
+def _block(ings: list[IngredientNutrition], servings: int, cooked_weight_g: float) -> dict:
+    """Totaux, valeurs par portion et pour 100 g, macros et repères sportifs d'un ensemble d'ingrédients."""
+    total = {k: sum(getattr(i, k) for i in ings) for k in NUTRIENTS}
 
     # Garde-fou : l'énergie doit correspondre aux macronutriments (facteurs d'Atwater)
     atwater = 4 * total["protein_g"] + 4 * total["carbs_g"] + 9 * total["fat_g"] + 2 * total["fiber_g"]
@@ -116,8 +121,7 @@ def summarize(a: NutritionAnalysis, recipe_servings: int | None) -> dict:
         total["kcal"] = atwater
 
     portion = {k: v / servings for k, v in total.items()}
-    per_100g = ({k: v * 100 / a.cooked_weight_g for k, v in total.items()}
-                if a.cooked_weight_g > 0 else None)
+    per_100g = {k: v * 100 / cooked_weight_g for k, v in total.items()} if cooked_weight_g > 0 else None
 
     e_p, e_c, e_f = 4 * total["protein_g"], 4 * total["carbs_g"], 9 * total["fat_g"]
     e_tot = (e_p + e_c + e_f) or 1
@@ -146,9 +150,8 @@ def summarize(a: NutritionAnalysis, recipe_servings: int | None) -> dict:
 
     rounded = lambda d: {k: _r(v, 0 if k == "kcal" else 1) for k, v in d.items()} if d else None  # noqa: E731
     return {
-        "servings": servings,
-        "cooked_weight_g": _r(a.cooked_weight_g, 0),
-        "portion_weight_g": _r(a.cooked_weight_g / servings, 0) if a.cooked_weight_g else None,
+        "cooked_weight_g": _r(cooked_weight_g, 0),
+        "portion_weight_g": _r(cooked_weight_g / servings, 0) if cooked_weight_g else None,
         "total": rounded(total),
         "per_portion": rounded(portion),
         "per_100g": rounded(per_100g),
@@ -156,10 +159,28 @@ def summarize(a: NutritionAnalysis, recipe_servings: int | None) -> dict:
         "protein_per_100kcal": _r(portion["protein_g"] * 100 / kcal_p),
         "carb_protein_ratio": _r(portion["carbs_g"] / portion["protein_g"]) if portion["protein_g"] else None,
         "badges": badges,
+        "kcal_adjusted": kcal_adjusted,
+    }
+
+
+def summarize(a: NutritionAnalysis, recipe_servings: int | None) -> dict:
+    """Résumé complet (avec les éléments facultatifs) et variante sans eux s'il y en a."""
+    servings = max(1, recipe_servings or a.servings or 1)
+    summary = _block(a.ingredients, servings, a.cooked_weight_g)
+    core = [i for i in a.ingredients if not i.optional]
+    without = None
+    if len(core) < len(a.ingredients) and core:
+        # Poids du plat sans les options : au prorata des poids crus
+        all_g = sum(i.grams for i in a.ingredients) or 1
+        without = _block(core, servings, a.cooked_weight_g * sum(i.grams for i in core) / all_g)
+    return {
+        **summary,
+        "version": VERSION,
+        "servings": servings,
+        "without_optional": without,
         "ingredients": [i.model_dump() for i in a.ingredients],
         "confidence": a.confidence,
         "notes": a.notes,
-        "kcal_adjusted": kcal_adjusted,
         "reference_intakes": REFERENCE_INTAKES,
         "computed_at": time.time(),
     }

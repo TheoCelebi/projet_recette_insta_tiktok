@@ -293,9 +293,10 @@ def _resume_work() -> None:
         if r["status"] == "pending":
             pool.submit(process, r["id"], r["url"])
         elif (r["status"] == "done" and (r["data"] or {}).get("is_recipe")
-              and (r["nutrition"] is None or r["nutrition_status"] == "pending")
-              and r["nutrition_status"] != "error"):
-            # Recettes importées avant l'ajout de la nutrition, ou calcul interrompu
+              and r["nutrition_status"] != "error"
+              and (r["nutrition"] is None or r["nutrition_status"] == "pending"
+                   or r["nutrition"].get("version", 1) < nutrition.VERSION)):
+            # Recettes sans valeurs nutritionnelles, calcul interrompu, ou méthode de calcul changée
             pool.submit(compute_nutrition, r["id"])
 
 
