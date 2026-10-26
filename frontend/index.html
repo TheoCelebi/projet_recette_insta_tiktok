@@ -204,35 +204,29 @@ function toggleTheme() {
 }
 applyTheme(getTheme());
 
-/* ---------- Hors ligne : copie locale des recettes ---------- */
+/* ---------- Hors ligne : copie locale d'abord, Mac en arrière-plan ----------
+   Chaque écran s'affiche immédiatement depuis la copie gardée sur l'appareil, puis on
+   interroge le Mac ; on ne redessine que si quelque chose a changé. */
 const STORE = "recipes-cache";
-let offline = false;
-const readStore = () => { try { return JSON.parse(localStorage.getItem(STORE)) || []; } catch { return []; } };
-const writeStore = list => { try { localStorage.setItem(STORE, JSON.stringify(list.filter(r => r.status === "done"))); } catch {} };
+const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+             set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+let offline = ls.get("offline-hint") === "1";  // dernier état connu, pour le premier affichage
+let navToken = 0;                               // invalide les rafraîchissements d'un écran quitté
+const readStore = () => { try { return JSON.parse(ls.get(STORE)) || []; } catch { return []; } };
+const writeStore = list => ls.set(STORE, JSON.stringify(list.filter(r => r.status === "done")));
 
 async function getJSON(path) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 4000);
-  try { const res = await api(path, { signal: ctrl.signal }); offline = false; return res; }
+  const t = setTimeout(() => ctrl.abort(), 3000);
+  try { const res = await api(path, { signal: ctrl.signal }); setOffline(false); return res; }
   catch (e) {
     if (e.name !== "AbortError" && !(e instanceof TypeError)) throw e;  // vraie erreur serveur (404...)
-    offline = true; return null;
+    setOffline(true); return null;
   } finally { clearTimeout(t); }
 }
-async function loadList() {
-  const list = await getJSON("/api/recipes");
-  if (list) { writeStore(list); return list; }
-  return readStore();
-}
-async function loadRecipe(id) {
-  const r = await getJSON(`/api/recipes/${id}`);
-  if (r) {
-    if (r.status === "done") writeStore([r, ...readStore().filter(x => x.id !== id)].sort((a, b) => b.created_at - a.created_at));
-    return r;
-  }
-  const cached = readStore().find(x => x.id === id);
-  if (!cached) throw new Error("Cette recette n'est pas disponible hors ligne.");
-  return cached;
+function setOffline(v) { offline = v; ls.set("offline-hint", v ? "1" : "0"); }
+function cacheRecipe(r) {
+  if (r.status === "done") writeStore([r, ...readStore().filter(x => x.id !== r.id)].sort((a, b) => b.created_at - a.created_at));
 }
 const offlineBanner = () => offline
   ? `<div class="offline">Mac injoignable : tu consultes ton carnet hors ligne. Allume le Mac pour ajouter des recettes.</div>` : "";
@@ -263,7 +257,20 @@ const today = () => new Date().toLocaleDateString("fr-FR", { weekday: "long", da
 
 /* ---------- Accueil ---------- */
 async function home() {
-  const list = await loadList();
+  const token = ++navToken;
+  const cached = readStore();
+  let state = null;
+  if (cached.length) state = renderHome(cached);
+  const fresh = await getJSON("/api/recipes");
+  if (token !== navToken) return;  // l'utilisateur a changé d'écran entre-temps
+  if (fresh) writeStore(fresh);
+  const list = fresh || cached;
+  if (JSON.stringify([list, offline]) !== state) renderHome(list);
+  if (!offline && list.some(r => r.status === "pending")) timer = setTimeout(route, 3000);
+}
+
+function renderHome(list) {
+  const typed = document.querySelector("#add input")?.value || "";
   const done = list.filter(r => r.status === "done" && r.data?.is_recipe);
   const tags = [...new Set(done.flatMap(r => r.data.tags || []))].slice(0, 12);
   if (activeTag && !tags.includes(activeTag)) activeTag = "";
@@ -289,7 +296,7 @@ async function home() {
         ${tags.map(t => `<button class="chip ${t === activeTag ? "on" : ""}" data-tag="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}
       <div class="fade">${first ? feature(first) : ""}
       ${rest.length ? `<div class="rule eyebrow">Dans ton carnet</div><div class="grid">${rest.map(card).join("")}</div>` : ""}</div>`;
-    $view.querySelectorAll("[data-tag]").forEach(b => b.onclick = () => { activeTag = b.dataset.tag; home(); });
+    $view.querySelectorAll("[data-tag]").forEach(b => b.onclick = () => { activeTag = b.dataset.tag; renderHome(list); });
   }
 
   document.getElementById("theme").onclick = toggleTheme;
@@ -300,7 +307,8 @@ async function home() {
       go(`#/r/${rec.id}`);
     } catch (err) { toast(err.message); }
   };
-  if (!offline && list.some(r => r.status === "pending")) timer = setTimeout(route, 3000);
+  if (typed) document.querySelector("#add input").value = typed;
+  return JSON.stringify([list, offline]);
 }
 
 function label(r) {
@@ -322,39 +330,55 @@ function card(r) {
 }
 
 /* ---------- Fiche recette ---------- */
+const detailState = {};  // portions choisies et ingrédients cochés, par recette
+
 async function detail(id) {
-  const r = await loadRecipe(id);
+  const token = ++navToken;
+  scrollTo(0, 0);
+  const cached = readStore().find(x => x.id === id);
+  let state = null;
+  if (cached) state = renderDetail(cached);
+  const fresh = await getJSON(`/api/recipes/${id}`);
+  if (token !== navToken) return;
+  if (fresh) cacheRecipe(fresh);
+  const r = fresh || cached;
+  if (!r) throw new Error("Cette recette n'est pas disponible hors ligne.");
+  if (JSON.stringify([r, offline]) !== state) renderDetail(r);
+  if (!offline && r.status === "pending") timer = setTimeout(route, 3000);
+}
+
+function renderDetail(r) {
+  const id = r.id;
   const back = `<button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button>`;
   if (r.status === "pending") {
     $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><div class="spinner"></div>
       <h2>On regarde la vidéo pour toi…</h2>
       <p class="meta">Lecture du texte à l'écran, écoute de l'audio,<br>puis écriture de la recette. 30 s à 2 min.</p></div>`;
-    bindBack(); timer = setTimeout(route, 3000); return;
+    bindBack(); return JSON.stringify([r, offline]);
   }
   if (r.status === "error") {
     $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><h2>Import impossible</h2>
       <p class="meta" style="max-width:420px">${esc(r.error)}</p><div class="actions">
       <button class="btn" id="retry">Réessayer</button><button class="btn ghost" id="del">Supprimer</button></div></div>`;
     document.getElementById("retry").onclick = () => api(`/api/recipes/${id}/retry`, { method: "POST" }).then(route);
-    bindBack(); bindDelete(id); return;
+    bindBack(); bindDelete(id); return JSON.stringify([r, offline]);
   }
   const d = r.data;
   if (!d.is_recipe) {
     $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><h2>Pas de recette dans cette vidéo</h2>
       <p class="meta" style="max-width:420px">${esc(d.summary)}</p><button class="btn ghost" id="del">Supprimer</button></div>`;
-    bindBack(); bindDelete(id); return;
+    bindBack(); bindDelete(id); return JSON.stringify([r, offline]);
   }
 
   const base = d.servings || 1;
-  let servings = base;
-  const checked = new Set();
+  const st = detailState[id] ||= { servings: base, checked: new Set() };
 
   const render = () => {
-    const ratio = servings / base;
+    const ratio = st.servings / base;
     const sections = [...new Set(d.ingredients.map(i => i.section || ""))];
     const ingHtml = sections.map(s => `${s ? `<h4>${esc(s)}</h4>` : ""}<ul class="ing">${
       d.ingredients.map((i, idx) => ({ i, idx })).filter(({ i }) => (i.section || "") === s).map(({ i, idx }) => `
-        <li data-idx="${idx}" class="${checked.has(idx) ? "done" : ""}"><span class="box"></span>
+        <li data-idx="${idx}" class="${st.checked.has(idx) ? "done" : ""}"><span class="box"></span>
           <span class="q">${esc(fmtQty(scaled(i, ratio)))} ${esc(unitLabel(i))}</span>
           <span class="name">${esc(i.name)}${i.note ? ` <span class="meta">— ${esc(i.note)}</span>` : ""}</span></li>`).join("")}</ul>`).join("");
 
@@ -372,7 +396,7 @@ async function detail(id) {
       <button class="btn cook-cta" id="cook">${ICONS.pan} Commencer à cuisiner</button>
       <div class="sec-title"><h3>Ingrédients</h3>
         <div class="stepper"><button data-s="-1" aria-label="Moins de personnes">−</button>
-        <span>${servings} pers.</span><button data-s="1" aria-label="Plus de personnes">+</button></div></div>
+        <span>${st.servings} pers.</span><button data-s="1" aria-label="Plus de personnes">+</button></div></div>
       ${ingHtml}
       <div class="sec-title"><h3>Préparation</h3></div>
       <ol class="steps">${d.steps.map(s => `<li><span>${esc(s)}</span></li>`).join("")}</ol>
@@ -383,21 +407,21 @@ async function detail(id) {
       </div></div>`;
 
     $view.querySelectorAll("[data-s]").forEach(b => b.onclick = () => {
-      servings = Math.max(1, servings + Number(b.dataset.s)); render();
+      st.servings = Math.max(1, st.servings + Number(b.dataset.s)); render();
     });
     $view.querySelectorAll("ul.ing li").forEach(li => li.onclick = () => {
-      const i = Number(li.dataset.idx); checked.has(i) ? checked.delete(i) : checked.add(i); li.classList.toggle("done");
+      const i = Number(li.dataset.idx); st.checked.has(i) ? st.checked.delete(i) : st.checked.add(i); li.classList.toggle("done");
     });
     document.getElementById("copy").onclick = () => {
-      const lines = d.ingredients.filter((_, i) => !checked.has(i)).map(i =>
+      const lines = d.ingredients.filter((_, i) => !st.checked.has(i)).map(i =>
         `- ${[fmtQty(scaled(i, ratio)), unitLabel(i), i.name].filter(Boolean).join(" ")}`);
-      navigator.clipboard.writeText(`${d.title} (${servings} pers.)\n${lines.join("\n")}`).then(() => toast("Liste copiée"));
+      navigator.clipboard.writeText(`${d.title} (${st.servings} pers.)\n${lines.join("\n")}`).then(() => toast("Liste copiée"));
     };
     document.getElementById("cook").onclick = () => cookMode(d, ratio);
     bindBack(); bindDelete(id);
   };
   render();
-  scrollTo(0, 0);
+  return JSON.stringify([r, offline]);
 }
 
 function bindBack() { const b = document.getElementById("back"); if (b) b.onclick = () => go("#/"); }

@@ -1,6 +1,6 @@
 // Service worker : permet d'ouvrir l'appli et de voir les photos même quand le Mac est éteint.
 // Les données des recettes sont gardées côté page (localStorage), voir index.html.
-const SHELL = "shell-v2";
+const SHELL = "shell-v3";
 const THUMBS = "thumbs-v1";
 const SHELL_FILES = ["/", "/manifest.json", "/icon.svg", "/icon-180.png",
   "/fonts/fraunces.woff2", "/fonts/fraunces-italic.woff2", "/fonts/dmsans.woff2"];
@@ -14,11 +14,6 @@ self.addEventListener("activate", e => {
     .then(keys => Promise.all(keys.filter(k => ![SHELL, THUMBS].includes(k)).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
-
-// Quand le Mac est éteint, la requête peut rester bloquée : on abandonne vite.
-function fetchWithTimeout(req, ms = 3000) {
-  return Promise.race([fetch(req), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
-}
 
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
@@ -36,14 +31,16 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // Coquille de l'appli : réseau d'abord (pour les mises à jour), cache si le Mac est injoignable
-  if (e.request.mode === "navigate" || SHELL_FILES.includes(url.pathname)) {
-    const key = e.request.mode === "navigate" ? "/" : url.pathname;
-    e.respondWith(fetchWithTimeout(e.request)
-      .then(res => {
-        if (res.ok) caches.open(SHELL).then(c => c.put(key, res.clone()));
-        return res;
-      })
-      .catch(() => caches.match(key)));
+  // Coquille de l'appli : réponse immédiate depuis le cache, mise à jour en arrière-plan
+  // (la nouvelle version s'affiche à l'ouverture suivante). Sans cache : réseau.
+  // (/share et l'API passent toujours par le Mac : seule la page d'accueil est concernée)
+  if (SHELL_FILES.includes(url.pathname)) {
+    const key = url.pathname;
+    const update = fetch(e.request).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(SHELL).then(c => c.put(key, copy)); }
+      return res;
+    });
+    e.waitUntil(update.then(() => {}, () => {}));
+    e.respondWith(caches.match(key).then(hit => hit || update));
   }
 });
