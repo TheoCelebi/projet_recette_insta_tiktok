@@ -23,6 +23,7 @@
   :root {
     --paper: #F6F0E4; --card: #FBF7EF; --ink: #2E2318; --soft: #6E5A48; --muted: #9A6B4F;
     --line: #E3D7C4; --accent: #C4683E; --accent-ink: #FFF8EF; --wash: #EFE4D2; --danger: #B3402A;
+    --carb: #D9A441; --fat: #8A9A6B;
     --serif: "Fraunces", Georgia, serif; --sans: "DM Sans", -apple-system, system-ui, sans-serif;
     color-scheme: light;
   }
@@ -30,13 +31,13 @@
     :root:not([data-theme="light"]) {
       --paper: #1A1512; --card: #241D18; --ink: #F1E7D8; --soft: #C9B8A4; --muted: #B59A82;
       --line: #3A2F27; --accent: #E08A5F; --accent-ink: #1A1512; --wash: #2E2620; --danger: #F08A72;
-      color-scheme: dark;
+      --carb: #C9973A; --fat: #7C8C5E; color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --paper: #1A1512; --card: #241D18; --ink: #F1E7D8; --soft: #C9B8A4; --muted: #B59A82;
     --line: #3A2F27; --accent: #E08A5F; --accent-ink: #1A1512; --wash: #2E2620; --danger: #F08A72;
-    color-scheme: dark;
+    --carb: #C9973A; --fat: #7C8C5E; color-scheme: dark;
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -169,6 +170,77 @@
   .fade { animation: fade .35s ease both; }
   @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
   @media (prefers-reduced-motion: reduce) { .fade, .timer.ring { animation: none; } }
+
+  /* Dossiers */
+  .folders { display: flex; gap: 12px; overflow-x: auto; margin: 0 -16px 22px; padding: 2px 16px; scrollbar-width: none; }
+  .folders::-webkit-scrollbar { display: none; }
+  .folder { flex: none; width: 128px; text-decoration: none; text-align: left; padding: 0; }
+  .folder .cover { width: 128px; height: 128px; border-radius: 8px; overflow: hidden; display: grid;
+                   grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; background: var(--wash); }
+  .folder .cover > div { background: var(--wash) center/cover no-repeat; }
+  .folder .cover.one > div { grid-column: 1 / -1; grid-row: 1 / -1; }
+  .folder .cover.two { grid-template-rows: 1fr; }
+  .folder .cover.three > div:first-child { grid-row: 1 / -1; }
+  .folder .cover.empty, .folder.new .cover { grid-template-columns: 1fr; grid-template-rows: 1fr; place-items: center; color: var(--muted); }
+  .folder.new .cover { background: none; border: 1.5px dashed var(--line); color: var(--accent); }
+  .folder .cover svg { width: 30px; height: 30px; }
+  .folder b { display: block; font: 400 16px/1.2 var(--serif); margin-top: 8px; }
+  .folder .meta { font-size: 12px; }
+  .fchips { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
+  .fchip { border: 1px solid var(--line); border-radius: 99px; padding: 5px 12px; font-size: 13px; color: var(--soft); text-decoration: none; }
+  .fchip.add { border-style: dashed; color: var(--accent); }
+  .fhead h2 { font: 400 34px/1.08 var(--serif); margin: 4px 0 8px; letter-spacing: -.015em; }
+  .status { display: flex; align-items: center; gap: 10px; border: 1px dashed var(--line); border-radius: 10px;
+            padding: 10px 14px; font-size: 14px; color: var(--soft); margin: 14px 0; }
+  .status .spinner { width: 18px; height: 18px; flex: none; }
+
+  /* Nutrition */
+  .macros { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; margin: -8px 0 6px; }
+  .macros b { display: block; font: 400 21px var(--serif); }
+  .macros span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .macros-note { text-align: center; font-size: 12px; color: var(--muted); margin-bottom: 22px; }
+  .macros-note a { color: var(--accent); }
+  .nutri { border-top: 1px solid var(--line); padding-top: 18px; margin-bottom: 30px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 99px; padding: 3px; gap: 2px; }
+  .seg button { padding: 6px 12px; border-radius: 99px; font-size: 13px; color: var(--soft); }
+  .seg button.on { background: var(--ink); color: var(--paper); }
+  .kcal { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 10px; flex-wrap: wrap; }
+  .kcal b { font: 400 44px/1 var(--serif); }
+  .ebar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: var(--line); }
+  .ebar i { display: block; height: 100%; }
+  .legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 18px; }
+  .legend div { font-size: 13px; color: var(--soft); }
+  .legend b { display: block; font: 400 20px var(--serif); color: var(--ink); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  table.nt { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.nt td { padding: 8px 0; border-bottom: 1px dotted var(--line); }
+  table.nt td.v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 8px; }
+  table.nt td.pct { text-align: right; width: 54px; color: var(--muted); font-size: 13px; }
+  table.nt tr.sub td:first-child { padding-left: 14px; color: var(--soft); font-size: 14px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+  .badge { background: var(--wash); color: var(--accent); border-radius: 99px; padding: 4px 12px; font-size: 13px; font-weight: 500; }
+  .switch { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--soft); margin: 14px 0 0; cursor: pointer; }
+  .switch input, .check-row input { accent-color: var(--accent); width: 20px; height: 20px; flex: none; }
+  details.by-ing summary { cursor: pointer; color: var(--accent); font-size: 14px; margin: 18px 0 6px; }
+  .fine { font-size: 13px; color: var(--muted); margin-top: 14px; line-height: 1.5; }
+  .link-btn { color: var(--accent); text-decoration: underline; font-size: 13px; padding: 0; }
+
+  /* Fenêtres (bas d'écran sur téléphone) */
+  .sheet-wrap { position: fixed; inset: 0; background: rgba(20, 14, 10, .45); z-index: 30; display: flex;
+                align-items: flex-end; justify-content: center; }
+  .sheet { background: var(--paper); width: 100%; max-width: 560px; border-radius: 18px 18px 0 0; max-height: 85vh;
+           overflow: auto; padding: 22px 20px calc(20px + env(safe-area-inset-bottom)); }
+  @media (min-width: 700px) { .sheet-wrap { align-items: center; } .sheet { border-radius: 18px; } }
+  .sheet h3 { font: 400 24px var(--serif); margin: 0 0 14px; }
+  .field { display: block; margin-bottom: 14px; }
+  .field span { display: block; font-size: 13px; color: var(--soft); margin-bottom: 6px; }
+  .field input, .field textarea { width: 100%; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+                                  border-radius: 12px; padding: 12px 14px; font: 16px var(--sans); outline: none; resize: vertical; }
+  .field input:focus, .field textarea:focus { border-color: var(--accent); }
+  .check-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line);
+               cursor: pointer; font-size: 16px; }
+  .sheet .actions { margin-top: 18px; }
+  .err-text { color: var(--danger); font-size: 13px; min-height: 18px; }
 </style>
 </head>
 <body>
@@ -177,7 +249,8 @@
 const $view = document.getElementById("view");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const api = (path, opts = {}) => fetch(path, { headers: { "Content-Type": "application/json" }, ...opts })
-  .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(new Error(e.detail || r.statusText))));
+  .then(r => r.ok ? r.json() : r.json().catch(() => ({})).then(e =>
+    Promise.reject(new Error(typeof e.detail === "string" ? e.detail : "Vérifie les champs du formulaire."))));
 let timer, activeTag = "";
 
 const ICONS = {
@@ -187,6 +260,8 @@ const ICONS = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   pan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="13" r="7"/><path d="M17 13h5"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>',
   book: '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14c8-3 16-3 22 2v36c-6-5-14-5-22-2Z"/><path d="M54 14c-8-3-16-3-22 2v36c6-5 14-5 22-2Z"/><path d="M38 24c4-1 7-1 10 0M38 31c4-1 7-1 10 0"/></svg>',
 };
 
@@ -225,6 +300,12 @@ async function getJSON(path) {
   } finally { clearTimeout(t); }
 }
 function setOffline(v) { offline = v; ls.set("offline-hint", v ? "1" : "0"); }
+const FSTORE = "folders-cache";
+const readFolders = () => { try { return JSON.parse(ls.get(FSTORE)) || []; } catch { return []; } };
+const writeFolders = f => ls.set(FSTORE, JSON.stringify(f));
+const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+let recipeBack = "#/";  // où ramène le bouton retour d'une fiche (accueil ou dossier)
+
 function cacheRecipe(r) {
   if (r.status === "done") writeStore([r, ...readStore().filter(x => x.id !== r.id)].sort((a, b) => b.created_at - a.created_at));
 }
@@ -258,18 +339,29 @@ const today = () => new Date().toLocaleDateString("fr-FR", { weekday: "long", da
 /* ---------- Accueil ---------- */
 async function home() {
   const token = ++navToken;
-  const cached = readStore();
+  const cached = readStore(), cachedF = readFolders();
   let state = null;
-  if (cached.length) state = renderHome(cached);
-  const fresh = await getJSON("/api/recipes");
+  if (cached.length || cachedF.length) state = renderHome(cached, cachedF);
+  const [fresh, freshF] = await Promise.all([getJSON("/api/recipes"), getJSON("/api/folders")]);
   if (token !== navToken) return;  // l'utilisateur a changé d'écran entre-temps
   if (fresh) writeStore(fresh);
-  const list = fresh || cached;
-  if (JSON.stringify([list, offline]) !== state) renderHome(list);
-  if (!offline && list.some(r => r.status === "pending")) timer = setTimeout(route, 3000);
+  if (freshF) writeFolders(freshF);
+  const list = fresh || cached, folders = freshF || cachedF;
+  if (JSON.stringify([list, folders, offline]) !== state) renderHome(list, folders);
+  const busy = list.some(r => r.status === "pending" || r.nutrition_status === "pending") || folders.some(f => f.status === "sorting");
+  if (!offline && busy) timer = setTimeout(route, 4000);
 }
 
-function renderHome(list) {
+function folderTile(f) {
+  const covers = (f.covers || []).slice(0, 4);
+  const cls = ["empty", "one", "two", "three", ""][covers.length];
+  const inner = covers.length ? covers.map(c => `<div style="background-image:url('${esc(c)}')"></div>`).join("") : ICONS.folder;
+  return `<a class="folder" href="#/d/${f.id}"><div class="cover ${cls}">${inner}</div><b>${esc(f.name)}</b>
+    <span class="meta">${f.status === "sorting" ? "Rangement…" : plural(f.count, "recette")}</span></a>`;
+}
+
+function renderHome(list, folders = []) {
+  recipeBack = "#/";
   const typed = document.querySelector("#add input")?.value || "";
   const done = list.filter(r => r.status === "done" && r.data?.is_recipe);
   const tags = [...new Set(done.flatMap(r => r.data.tags || []))].slice(0, 12);
@@ -291,12 +383,18 @@ function renderHome(list) {
   } else {
     const shown = list.filter(r => !activeTag || (r.data?.tags || []).includes(activeTag));
     const [first, ...rest] = shown;
-    $view.innerHTML = header + `
+    const foldersRow = folders.length || !offline ? `<div class="rule eyebrow">Mes dossiers</div><div class="folders">
+      ${folders.map(folderTile).join("")}
+      ${offline ? "" : `<button class="folder new" id="new-folder"><div class="cover">${ICONS.plus}</div>
+        <b>Nouveau dossier</b><span class="meta">Healthy, prise de masse…</span></button>`}</div>` : "";
+    $view.innerHTML = header + foldersRow + `
       ${tags.length > 1 ? `<div class="chips"><button class="chip ${activeTag ? "" : "on"}" data-tag="">Tout</button>
         ${tags.map(t => `<button class="chip ${t === activeTag ? "on" : ""}" data-tag="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}
       <div class="fade">${first ? feature(first) : ""}
       ${rest.length ? `<div class="rule eyebrow">Dans ton carnet</div><div class="grid">${rest.map(card).join("")}</div>` : ""}</div>`;
-    $view.querySelectorAll("[data-tag]").forEach(b => b.onclick = () => { activeTag = b.dataset.tag; renderHome(list); });
+    $view.querySelectorAll("[data-tag]").forEach(b => b.onclick = () => { activeTag = b.dataset.tag; renderHome(list, folders); });
+    const nf = document.getElementById("new-folder");
+    if (nf) nf.onclick = () => folderSheet();
   }
 
   document.getElementById("theme").onclick = toggleTheme;
@@ -308,14 +406,16 @@ function renderHome(list) {
     } catch (err) { toast(err.message); }
   };
   if (typed) document.querySelector("#add input").value = typed;
-  return JSON.stringify([list, offline]);
+  return JSON.stringify([list, folders, offline]);
 }
 
 function label(r) {
   if (r.status === "pending") return { title: "En cours d'écriture…", meta: "On regarde la vidéo" };
   if (r.status === "error") return { title: "Import impossible", meta: "Touche pour réessayer" };
-  const d = r.data;
-  return { title: d.title, meta: [minutes(total(d)), d.difficulty, r.author && "@" + r.author].filter(Boolean).join(" · ") };
+  const d = r.data, n = r.nutrition?.per_portion;
+  const meta = n ? [minutes(total(d)), `${Math.round(n.kcal)} kcal`, `${Math.round(n.protein_g)} g prot.`]
+                 : [minutes(total(d)), d.difficulty, r.author && "@" + r.author];
+  return { title: d.title, meta: meta.filter(Boolean).join(" · ") };
 }
 function feature(r) {
   const l = label(r);
@@ -338,13 +438,14 @@ async function detail(id) {
   const cached = readStore().find(x => x.id === id);
   let state = null;
   if (cached) state = renderDetail(cached);
-  const fresh = await getJSON(`/api/recipes/${id}`);
+  const [fresh, freshF] = await Promise.all([getJSON(`/api/recipes/${id}`), getJSON("/api/folders")]);
   if (token !== navToken) return;
   if (fresh) cacheRecipe(fresh);
+  if (freshF) writeFolders(freshF);
   const r = fresh || cached;
   if (!r) throw new Error("Cette recette n'est pas disponible hors ligne.");
-  if (JSON.stringify([r, offline]) !== state) renderDetail(r);
-  if (!offline && r.status === "pending") timer = setTimeout(route, 3000);
+  if (JSON.stringify([r, readFolders(), offline]) !== state) renderDetail(r);
+  if (!offline && (r.status === "pending" || r.nutrition_status === "pending")) timer = setTimeout(route, 4000);
 }
 
 function renderDetail(r) {
@@ -354,20 +455,20 @@ function renderDetail(r) {
     $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><div class="spinner"></div>
       <h2>On regarde la vidéo pour toi…</h2>
       <p class="meta">Lecture du texte à l'écran, écoute de l'audio,<br>puis écriture de la recette. 30 s à 2 min.</p></div>`;
-    bindBack(); return JSON.stringify([r, offline]);
+    bindBack(); return JSON.stringify([r, readFolders(), offline]);
   }
   if (r.status === "error") {
     $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><h2>Import impossible</h2>
       <p class="meta" style="max-width:420px">${esc(r.error)}</p><div class="actions">
       <button class="btn" id="retry">Réessayer</button><button class="btn ghost" id="del">Supprimer</button></div></div>`;
     document.getElementById("retry").onclick = () => api(`/api/recipes/${id}/retry`, { method: "POST" }).then(route);
-    bindBack(); bindDelete(id); return JSON.stringify([r, offline]);
+    bindBack(); bindDelete(id); return JSON.stringify([r, readFolders(), offline]);
   }
   const d = r.data;
   if (!d.is_recipe) {
     $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><h2>Pas de recette dans cette vidéo</h2>
       <p class="meta" style="max-width:420px">${esc(d.summary)}</p><button class="btn ghost" id="del">Supprimer</button></div>`;
-    bindBack(); bindDelete(id); return JSON.stringify([r, offline]);
+    bindBack(); bindDelete(id); return JSON.stringify([r, readFolders(), offline]);
   }
 
   const base = d.servings || 1;
@@ -388,11 +489,13 @@ function renderDetail(r) {
       <h2>${esc(d.title)}</h2>
       <p class="summary">${esc(d.summary)}</p>
       <div class="meta">Une recette de <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.author ? "@" + r.author : "la vidéo originale")}</a></div>
+      ${folderChips(r)}
       <div class="facts">
         <div><span class="eyebrow">Préparation</span><b>${minutes(d.prep_minutes)}</b></div>
         <div><span class="eyebrow">Cuisson</span><b>${minutes(d.cook_minutes)}</b></div>
         <div><span class="eyebrow">Niveau</span><b>${esc(d.difficulty || "–")}</b></div>
       </div>
+      ${macroStrip(r, st)}
       <button class="btn cook-cta" id="cook">${ICONS.pan} Commencer à cuisiner</button>
       <div class="sec-title"><h3>Ingrédients</h3>
         <div class="stepper"><button data-s="-1" aria-label="Moins de personnes">−</button>
@@ -400,6 +503,7 @@ function renderDetail(r) {
       ${ingHtml}
       <div class="sec-title"><h3>Préparation</h3></div>
       <ol class="steps">${d.steps.map(s => `<li><span>${esc(s)}</span></li>`).join("")}</ol>
+      ${nutritionHtml(r, st)}
       ${d.tips?.length ? `<div class="note"><h3>Le mot du chef</h3><ul>${d.tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>` : ""}
       <div class="actions">
         <button class="btn ghost" id="copy">Copier la liste de courses</button>
@@ -418,18 +522,238 @@ function renderDetail(r) {
       navigator.clipboard.writeText(`${d.title} (${st.servings} pers.)\n${lines.join("\n")}`).then(() => toast("Liste copiée"));
     };
     document.getElementById("cook").onclick = () => cookMode(d, ratio);
-    bindBack(); bindDelete(id);
+    $view.querySelectorAll("[data-view]").forEach(b => b.onclick = () => { st.view = b.dataset.view; render(); });
+    const opt = document.getElementById("with-opt");
+    if (opt) opt.onchange = () => { st.optional = opt.checked; render(); };
+    const det = $view.querySelector("details.by-ing");
+    if (det) det.ontoggle = () => { st.ingOpen = det.open; };
+    const run = document.getElementById("nutri-run");
+    if (run) run.onclick = () => api(`/api/recipes/${id}/nutrition`, { method: "POST" }).then(route).catch(e => toast(e.message));
+    const rg = document.getElementById("range");
+    if (rg) rg.onclick = () => rangeSheet(r);
+    bindBack(recipeBack); bindDelete(id);
   };
   render();
-  return JSON.stringify([r, offline]);
+  return JSON.stringify([r, readFolders(), offline]);
 }
 
-function bindBack() { const b = document.getElementById("back"); if (b) b.onclick = () => go("#/"); }
+function bindBack(target = "#/") { const b = document.getElementById("back"); if (b) b.onclick = () => go(target); }
 function bindDelete(id) {
   const b = document.getElementById("del");
   if (b) b.onclick = async () => {
     if (!confirm("Retirer cette recette de ton carnet ?")) return;
     await api(`/api/recipes/${id}`, { method: "DELETE" }); go("#/");
+  };
+}
+
+/* ---------- Valeurs nutritionnelles ---------- */
+const NUT_ROWS = [
+  ["protein_g", "Protéines", "g"], ["carbs_g", "Glucides", "g"], ["sugars_g", "dont sucres", "g", true],
+  ["fat_g", "Lipides", "g"], ["saturated_fat_g", "dont saturés", "g", true], ["fiber_g", "Fibres", "g"], ["salt_g", "Sel", "g"],
+];
+const MICRO_ROWS = [
+  ["potassium_mg", "Potassium", "mg"], ["magnesium_mg", "Magnésium", "mg"], ["calcium_mg", "Calcium", "mg"],
+  ["iron_mg", "Fer", "mg"], ["zinc_mg", "Zinc", "mg"], ["vitamin_c_mg", "Vitamine C", "mg"],
+  ["vitamin_d_ug", "Vitamine D", "µg"], ["vitamin_b12_ug", "Vitamine B12", "µg"],
+];
+function fmtN(v, unit) {
+  if (v == null) return "–";
+  const digits = unit === "kcal" ? 0 : unit === "µg" || v < 10 ? 1 : 0;
+  return `${v.toLocaleString("fr-FR", { maximumFractionDigits: digits })} ${unit}`;
+}
+// Bloc affiché : avec ou sans les éléments facultatifs
+const nutBlock = (n, st) => st.optional === false && n.without_optional ? n.without_optional : n;
+
+function macroStrip(r, st) {
+  const n = r.nutrition;
+  if (!n) return "";
+  const p = nutBlock(n, st).per_portion;
+  return `<div class="macros"><div><b>${Math.round(p.kcal)}</b><span>kcal</span></div>
+    <div><b>${Math.round(p.protein_g)} g</b><span>Protéines</span></div>
+    <div><b>${Math.round(p.carbs_g)} g</b><span>Glucides</span></div>
+    <div><b>${Math.round(p.fat_g)} g</b><span>Lipides</span></div></div>
+    <div class="macros-note">par portion · <a href="#nutri" onclick="document.getElementById('nutri').scrollIntoView({behavior:'smooth'});return false">tout le détail nutritionnel</a></div>`;
+}
+
+function nutritionHtml(r, st) {
+  const n = r.nutrition, ns = r.nutrition_status;
+  const title = `<div class="sec-title"><h3>Valeurs nutritionnelles</h3></div>`;
+  if (!n) {
+    if (ns === "pending")
+      return `<div class="nutri" id="nutri">${title}<div class="status"><div class="spinner"></div>Calcul des valeurs nutritionnelles en cours…</div></div>`;
+    const why = ns === "error" ? `Le calcul a échoué : ${esc(r.error || "erreur inconnue")}` : "Pas encore calculées.";
+    return `<div class="nutri" id="nutri">${title}<p class="meta">${why}</p>
+      ${offline ? "" : `<button class="btn ghost" id="nutri-run">${ns === "error" ? "Réessayer" : "Calculer"}</button>`}</div>`;
+  }
+  const b = nutBlock(n, st), view = st.view || "portion";
+  let vals, label;
+  if (view === "100g" && b.per_100g) { vals = b.per_100g; label = "pour 100 g"; }
+  else if (view === "recipe") {
+    vals = Object.fromEntries(Object.entries(b.per_portion).map(([k, v]) => [k, v * st.servings]));
+    label = `pour ${plural(st.servings, "personne")}`;
+  } else { vals = b.per_portion; label = `par portion${b.portion_weight_g ? ` (≈ ${b.portion_weight_g} g)` : ""}`; }
+  const RI = n.reference_intakes;
+  const pct = k => RI[k] ? `${Math.round(vals[k] * 100 / RI[k])} %` : "";
+  const rows = list => list.map(([k, name, unit, sub]) =>
+    `<tr class="${sub ? "sub" : ""}"><td>${name}</td><td class="v">${fmtN(vals[k], unit)}</td><td class="pct">${pct(k)}</td></tr>`).join("");
+  const sp = b.energy_split;
+  const ings = n.ingredients.filter(i => i.grams > 0 || i.kcal > 0);
+  return `<div class="nutri" id="nutri">${title}
+    <div class="seg" role="group" aria-label="Unité">
+      <button data-view="portion" class="${view === "portion" ? "on" : ""}">Portion</button>
+      <button data-view="recipe" class="${view === "recipe" ? "on" : ""}">Recette</button>
+      ${b.per_100g ? `<button data-view="100g" class="${view === "100g" ? "on" : ""}">100 g</button>` : ""}
+    </div>
+    ${ns === "pending" ? `<div class="status"><div class="spinner"></div>Mise à jour des valeurs…</div>` : ""}
+    ${n.without_optional ? `<label class="switch"><input type="checkbox" id="with-opt" ${st.optional === false ? "" : "checked"}>
+      Avec les éléments facultatifs (${esc(n.ingredients.filter(i => i.optional).map(i => i.ingredient).join(", "))})</label>` : ""}
+    <div class="kcal"><b>${Math.round(vals.kcal)}</b><span>kcal ${label}</span><span class="meta">· ${pct("kcal")} des apports</span></div>
+    <div class="ebar" aria-hidden="true"><i style="width:${sp.protein}%;background:var(--accent)"></i>
+      <i style="width:${sp.carbs}%;background:var(--carb)"></i><i style="width:${sp.fat}%;background:var(--fat)"></i></div>
+    <div class="legend">
+      <div><span class="dot" style="background:var(--accent)"></span>Protéines<b>${fmtN(vals.protein_g, "g")}</b>${sp.protein} % de l'énergie</div>
+      <div><span class="dot" style="background:var(--carb)"></span>Glucides<b>${fmtN(vals.carbs_g, "g")}</b>${sp.carbs} % de l'énergie</div>
+      <div><span class="dot" style="background:var(--fat)"></span>Lipides<b>${fmtN(vals.fat_g, "g")}</b>${sp.fat} % de l'énergie</div>
+    </div>
+    <table class="nt">${rows(NUT_ROWS)}</table>
+    <h4>Pour les sportifs</h4>
+    ${b.badges.length ? `<div class="badges">${b.badges.map(x => `<span class="badge">${esc(x)}</span>`).join("")}</div>` : ""}
+    <table class="nt">
+      <tr><td>Protéines pour 100 kcal</td><td class="v">${fmtN(b.protein_per_100kcal, "g")}</td><td class="pct"></td></tr>
+      ${b.carb_protein_ratio != null ? `<tr><td>Rapport glucides / protéines</td><td class="v">${b.carb_protein_ratio.toLocaleString("fr-FR")} : 1</td><td class="pct"></td></tr>` : ""}
+      ${b.portion_weight_g ? `<tr><td>Poids d'une portion</td><td class="v">≈ ${b.portion_weight_g} g</td><td class="pct"></td></tr>` : ""}
+    </table>
+    <h4>Micronutriments</h4>
+    <table class="nt">${rows(MICRO_ROWS)}</table>
+    <details class="by-ing" ${st.ingOpen ? "open" : ""}><summary>Détail par ingrédient (recette entière)</summary>
+      <table class="nt"><tr><td class="meta">Ingrédient</td><td class="v meta">Poids</td><td class="v meta">Énergie</td><td class="v meta">Prot.</td></tr>
+      ${ings.map(i => `<tr><td>${esc(i.ingredient)}${i.optional ? ` <span class="meta">(facultatif)</span>` : ""}${i.quantity_estimated ? ` <span class="meta">(quantité estimée)</span>` : ""}</td>
+        <td class="v">${Math.round(i.grams)} g</td><td class="v">${Math.round(i.kcal)} kcal</td><td class="v">${fmtN(i.protein_g, "g")}</td></tr>`).join("")}</table>
+    </details>
+    <p class="fine">Estimation calculée à partir des ingrédients (fiabilité ${esc(n.confidence)}). ${esc(n.notes)}
+      Les % se rapportent aux apports de référence d'un adulte (2 000 kcal).
+      ${offline ? "" : `<button class="link-btn" id="nutri-run">Recalculer</button>`}</p>
+  </div>`;
+}
+
+/* ---------- Dossiers ---------- */
+function folderChips(r) {
+  const all = readFolders();
+  const mine = (r.folders || []).map(fid => all.find(f => f.id === fid)).filter(Boolean);
+  if (!mine.length && offline) return "";
+  return `<div class="fchips">${mine.map(f => `<a class="fchip" href="#/d/${f.id}">${esc(f.name)}</a>`).join("")}
+    ${offline ? "" : `<button class="fchip add" id="range">${mine.length ? "Changer de dossier" : "+ Ranger dans un dossier"}</button>`}</div>`;
+}
+
+async function folderPage(fid) {
+  const token = ++navToken;
+  scrollTo(0, 0);
+  const cf = readFolders().find(f => f.id === fid), cl = readStore();
+  let state = null;
+  if (cf) state = renderFolder(cf, cl);
+  const [fl, list] = await Promise.all([getJSON("/api/folders"), getJSON("/api/recipes")]);
+  if (token !== navToken) return;
+  if (fl) writeFolders(fl);
+  if (list) writeStore(list);
+  const f = readFolders().find(x => x.id === fid);
+  if (!f) { go("#/"); return; }  // dossier supprimé entre-temps
+  const recipes = list || cl;
+  if (JSON.stringify([f, recipes, offline]) !== state) renderFolder(f, recipes);
+  if (!offline && f.status === "sorting") timer = setTimeout(route, 4000);
+}
+
+function renderFolder(f, list) {
+  recipeBack = `#/d/${f.id}`;
+  const items = list.filter(r => (r.folders || []).includes(f.id));
+  const withN = items.filter(r => r.nutrition?.per_portion);
+  const avg = k => Math.round(withN.reduce((sum, r) => sum + r.nutrition.per_portion[k], 0) / withN.length);
+  $view.innerHTML = `<div class="top"><button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button>
+      ${offline ? "" : `<button class="btn ghost" id="edit">Modifier</button>`}</div>
+    ${offlineBanner()}
+    <div class="fhead fade"><div class="eyebrow">Dossier</div><h2>${esc(f.name)}</h2>
+      ${f.description ? `<p class="summary">${esc(f.description)}</p>` : ""}
+      <div class="meta">${plural(items.length, "recette")}${withN.length
+        ? ` · en moyenne ${avg("kcal")} kcal et ${avg("protein_g")} g de protéines par portion` : ""}</div></div>
+    ${f.status === "sorting" ? `<div class="status"><div class="spinner"></div>Je range tes recettes dans ce dossier…</div>` : ""}
+    ${f.error ? `<div class="status">Le rangement automatique a échoué : ${esc(f.error)}</div>` : ""}
+    ${items.length ? `<div class="grid fade" style="margin-top:22px">${items.map(card).join("")}</div>`
+      : `<div class="empty"><p>Ce dossier est vide pour l'instant. Ouvre une recette et touche « Ranger dans un dossier »${
+          offline ? "" : ", ou lance le rangement automatique"}.</p></div>`}
+    ${offline ? "" : `<div class="actions" style="margin-top:28px">
+      <button class="btn ghost" id="sort" ${f.status === "sorting" ? "hidden" : ""}>Ranger automatiquement</button>
+      <button class="btn ghost" id="fdel">Supprimer le dossier</button></div>`}`;
+  bindBack("#/");
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  on("edit", () => folderSheet(f));
+  on("sort", () => api(`/api/folders/${f.id}/sort`, { method: "POST" }).then(route).catch(e => toast(e.message)));
+  on("fdel", async () => {
+    if (!confirm(`Supprimer le dossier « ${f.name} » ? Les recettes restent dans ton carnet.`)) return;
+    await api(`/api/folders/${f.id}`, { method: "DELETE" });
+    writeFolders(readFolders().filter(x => x.id !== f.id));
+    go("#/");
+  });
+  return JSON.stringify([f, list, offline]);
+}
+
+function openSheet(html, onClose = () => {}) {
+  const wrap = document.createElement("div");
+  wrap.className = "sheet-wrap fade";
+  wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  wrap.close = () => { wrap.remove(); onClose(); };
+  wrap.addEventListener("click", e => { if (e.target === wrap) wrap.close(); });
+  document.body.append(wrap);
+  return wrap;
+}
+
+function folderSheet(f = null, onCreated = null) {
+  const el = openSheet(`<h3>${f ? "Modifier le dossier" : "Nouveau dossier"}</h3>
+    <form id="ff" novalidate>
+      <label class="field"><span>Nom</span>
+        <input name="name" maxlength="60" placeholder="Healthy" value="${esc(f?.name || "")}" autocomplete="off"></label>
+      <label class="field"><span>Ce qui va dedans (facultatif, aide le rangement automatique)</span>
+        <textarea name="description" rows="3" maxlength="300" placeholder="Moins de 600 kcal par portion, plein de légumes">${esc(f?.description || "")}</textarea></label>
+      ${f ? "" : `<label class="check-row" style="border:0"><input type="checkbox" name="auto" checked>
+        Y ranger tout de suite mes recettes qui correspondent</label>`}
+      <div class="err-text" id="ferr" role="alert"></div>
+      <div class="actions"><button type="button" class="btn ghost" id="fcancel">Annuler</button>
+        <button class="btn">${f ? "Enregistrer" : "Créer le dossier"}</button></div>
+    </form>`);
+  const err = el.querySelector("#ferr"), name = el.querySelector("input[name=name]");
+  name.oninput = () => { err.textContent = ""; };
+  el.querySelector("#fcancel").onclick = () => el.remove();
+  el.querySelector("#ff").onsubmit = async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = { name: fd.get("name").trim(), description: fd.get("description").trim() };
+    if (!body.name) { err.textContent = "Donne un nom à ton dossier."; name.focus(); return; }
+    try {
+      const res = f ? await api(`/api/folders/${f.id}`, { method: "PATCH", body: JSON.stringify(body) })
+                    : await api("/api/folders", { method: "POST", body: JSON.stringify({ ...body, auto: fd.get("auto") === "on" }) });
+      el.remove();
+      if (onCreated) await onCreated(res);
+      route();
+    } catch (ex) { err.textContent = ex.message; }
+  };
+  setTimeout(() => name.focus(), 60);
+}
+
+function rangeSheet(r) {
+  const folders = readFolders();
+  const el = openSheet(`<h3>Ranger dans…</h3>
+    <div id="flist">${folders.map(f => `<label class="check-row"><input type="checkbox" value="${f.id}"
+      ${(r.folders || []).includes(f.id) ? "checked" : ""}> ${esc(f.name)}</label>`).join("")
+      || `<p class="meta">Tu n'as pas encore de dossier : crée le premier.</p>`}</div>
+    <div class="actions"><button class="btn ghost" id="fnew">${ICONS.plus.replace("<svg", '<svg width="16" height="16" style="vertical-align:-3px"')} Nouveau dossier</button>
+      <button class="btn" id="fdone">Terminé</button></div>`, route);
+  const checked = () => [...el.querySelectorAll("#flist input:checked")].map(i => i.value);
+  const save = ids => api(`/api/recipes/${r.id}/folders`, { method: "PUT", body: JSON.stringify({ folder_ids: ids }) })
+    .then(upd => { r.folders = upd.folders; cacheRecipe(upd); }).catch(e => toast(e.message));
+  el.querySelectorAll("#flist input").forEach(i => i.onchange = () => save(checked()));
+  el.querySelector("#fdone").onclick = () => el.close();
+  el.querySelector("#fnew").onclick = () => {
+    const ids = checked();
+    el.remove();
+    folderSheet(null, nf => save([...ids, nf.id]));
   };
 }
 
@@ -508,8 +832,8 @@ function go(hash) {
 }
 function route() {
   clearTimeout(timer);
-  const m = location.hash.match(/^#\/r\/(\w+)/);
-  (m ? detail(m[1]) : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
+  const m = location.hash.match(/^#\/r\/(\w+)/), fm = location.hash.match(/^#\/d\/(\w+)/);
+  (m ? detail(m[1]) : fm ? folderPage(fm[1]) : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
 }
 addEventListener("hashchange", route);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!getTheme()) route(); });

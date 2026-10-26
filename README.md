@@ -25,6 +25,33 @@ légende + audio + images, puis demander à un LLM de structurer le tout.
 | `backend/app.py` | API FastAPI, traitement en arrière-plan, endpoint de partage `/share` |
 | `frontend/` | Web app mobile (PWA) : liste, recherche, fiche, portions, liste de courses |
 
+## Valeurs nutritionnelles
+
+Après l'import, Claude estime le poids réellement consommé de chaque ingrédient et ses
+nutriments : énergie, protéines, glucides, sucres, lipides, saturés, fibres, sel, potassium,
+magnésium, calcium, fer, zinc, vitamines C, D et B12. Le serveur calcule ensuite
+(`backend/nutrition.py`) :
+
+- les valeurs par portion, pour la recette entière et pour 100 g ;
+- la répartition de l'énergie entre protéines, glucides et lipides ;
+- les repères sportifs : protéines pour 100 kcal, rapport glucides/protéines, badges
+  « Riche en protéines », « Riche en fibres » (seuils des allégations UE), « Idéal après
+  l'effort », « Avant l'effort » ;
+- les % des apports de référence d'un adulte (règlement UE 1169/2011).
+
+Garde-fou : si les calories ne correspondent pas aux macros (facteurs d'Atwater, ±15 %),
+elles sont recalculées. Les éléments facultatifs (sauce optionnelle…) sont comptés, avec une
+bascule sur la fiche pour voir les valeurs sans eux. Ce sont des **estimations** : prévu
+ensuite, l'adossement à la table Ciqual de l'ANSES et aux produits Open Food Facts.
+
+## Dossiers
+
+Crée des dossiers (« Healthy », « Prise de masse »…) avec, si tu veux, une règle en clair
+(« au moins 25 g de protéines par portion »). Chaque nouvelle recette est rangée
+automatiquement dans les dossiers qui lui correspondent, et à la création d'un dossier les
+recettes existantes y sont rangées. Le bouton « Ranger dans un dossier » d'une fiche permet
+de corriger à la main.
+
 ## Lancer
 
 ```bash
