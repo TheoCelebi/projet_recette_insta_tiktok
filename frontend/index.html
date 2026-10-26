@@ -243,7 +243,6 @@
   .err-text { color: var(--danger); font-size: 13px; min-height: 18px; }
 
   /* Gestes : tirer pour recharger, glisser depuis le bord pour revenir */
-  .top-actions { display: flex; gap: 8px; }
   .ptr { position: fixed; top: calc(env(safe-area-inset-top) + 8px); left: 50%; z-index: 40; width: 40px; height: 40px;
          margin-left: -20px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); color: var(--accent);
          display: grid; place-items: center; opacity: 0; transform: translateY(-60px); pointer-events: none; }
@@ -543,8 +542,7 @@ function renderHome(list, folders = []) {
 
   const header = `<div class="top"><div><div class="eyebrow">${esc(today())}</div>
       <h1>Ton carnet<br><em>de cuisine</em></h1></div>
-      <div class="top-actions"><button class="icon-btn" id="reload" aria-label="Recharger l'appli">${ICONS.refresh}</button>
-      <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div></div>
+      <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div>
     ${offlineBanner()}
     <form class="import" id="add">
       <input type="text" inputmode="url" autocomplete="off" name="url" aria-label="Lien de la vidéo"
@@ -592,7 +590,6 @@ function renderHome(list, folders = []) {
     renderHome(list, folders);
   });
   document.getElementById("theme").onclick = toggleTheme;
-  document.getElementById("reload").onclick = hardReload;
   document.getElementById("add").onsubmit = async e => {
     e.preventDefault();
     const form = e.target, url = form.url.value.trim();
