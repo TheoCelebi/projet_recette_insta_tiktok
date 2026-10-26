@@ -1,12 +1,15 @@
 // Service worker : permet d'ouvrir l'appli et de voir les photos même quand le Mac est éteint.
 // Les données des recettes sont gardées côté page (localStorage), voir index.html.
-const SHELL = "shell-v5";
+const SHELL = "shell-v7";
 const THUMBS = "thumbs-v1";
 const SHELL_FILES = ["/", "/manifest.json", "/icon.svg", "/icon-180.png",
   "/fonts/fraunces.woff2", "/fonts/fraunces-italic.woff2", "/fonts/dmsans.woff2"];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
+  // cache: "reload" : on prend les fichiers sur le serveur, jamais dans le cache HTTP du navigateur
+  e.waitUntil(caches.open(SHELL)
+    .then(c => c.addAll(SHELL_FILES.map(u => new Request(u, { cache: "reload" }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", e => {
@@ -31,12 +34,19 @@ self.addEventListener("fetch", e => {
     return;
   }
 
+  // Partage (/share) : normalement traité par le Mac ; s'il est injoignable, on sert l'appli,
+  // qui garde le lien en file d'attente et l'enverra plus tard.
+  if (e.request.mode === "navigate" && url.pathname === "/share") {
+    e.respondWith(fetch(e.request).catch(() => caches.match("/")));
+    return;
+  }
+
   // Coquille de l'appli : réponse immédiate depuis le cache, mise à jour en arrière-plan
   // (la nouvelle version s'affiche à l'ouverture suivante). Sans cache : réseau.
   // (/share et l'API passent toujours par le Mac : seule la page d'accueil est concernée)
   if (SHELL_FILES.includes(url.pathname)) {
     const key = url.pathname;
-    const update = fetch(e.request).then(res => {
+    const update = fetch(e.request, { cache: "no-cache" }).then(res => {  // revalidation (304 si inchangé)
       if (res.ok) { const copy = res.clone(); caches.open(SHELL).then(c => c.put(key, copy)); }
       return res;
     });

@@ -241,6 +241,27 @@
                cursor: pointer; font-size: 16px; }
   .sheet .actions { margin-top: 18px; }
   .err-text { color: var(--danger); font-size: 13px; min-height: 18px; }
+
+  /* Tri et filtres */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: -6px 0 20px; }
+  .tool { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 99px;
+          padding: 6px 14px; font-size: 13px; color: var(--ink); }
+  .tool svg { width: 15px; height: 15px; }
+  .chip.small { font-size: 12px; padding: 5px 11px; }
+  .range { display: block; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .range span { display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 10px; }
+  .range b { font-weight: 500; color: var(--accent); }
+  .range input { width: 100%; accent-color: var(--accent); }
+
+  /* File d'attente hors ligne */
+  .queue { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-bottom: 22px; }
+  .qitem { display: flex; align-items: center; gap: 12px; border: 1px dashed var(--muted); border-radius: 12px; padding: 10px 12px; }
+  .qicon { width: 36px; height: 36px; border-radius: 50%; background: var(--wash); display: grid; place-items: center;
+           color: var(--accent); flex: none; }
+  .qicon svg { width: 18px; height: 18px; }
+  .qtext { flex: 1; min-width: 0; }
+  .qtext b { display: block; font-weight: 500; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qitem .icon-btn { width: 32px; height: 32px; }
 </style>
 </head>
 <body>
@@ -262,6 +283,8 @@ const ICONS = {
   pan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="13" r="7"/><path d="M17 13h5"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
   book: '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14c8-3 16-3 22 2v36c-6-5-14-5-22-2Z"/><path d="M54 14c-8-3-16-3-22 2v36c6-5 14-5 22-2Z"/><path d="M38 24c4-1 7-1 10 0M38 31c4-1 7-1 10 0"/></svg>',
 };
 
@@ -286,8 +309,8 @@ const STORE = "recipes-cache";
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
              set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 let offline = ls.get("offline-hint") === "1";  // dernier état connu, pour le premier affichage
-let navToken = 0;
-const RETRY_MS = 10000;                         // hors ligne : on retente de joindre le Mac                               // invalide les rafraîchissements d'un écran quitté
+let navToken = 0;                               // invalide les rafraîchissements d'un écran quitté
+const RETRY_MS = 10000;                         // hors ligne : on retente de joindre le Mac
 const readStore = () => { try { return JSON.parse(ls.get(STORE)) || []; } catch { return []; } };
 const writeStore = list => ls.set(STORE, JSON.stringify(list.filter(r => r.status === "done")));
 
@@ -300,7 +323,141 @@ async function getJSON(path) {
     setOffline(true); return null;
   } finally { clearTimeout(t); }
 }
-function setOffline(v) { offline = v; ls.set("offline-hint", v ? "1" : "0"); }
+let retryTimer = null;
+function setOffline(v) {
+  offline = v; ls.set("offline-hint", v ? "1" : "0");
+  // Mac injoignable (au chargement d'un écran ou pendant un envoi) : on retente régulièrement
+  if (v && !retryTimer) retryTimer = setTimeout(() => { retryTimer = null; route(); }, RETRY_MS);
+  if (!v && readQueue().length) setTimeout(flushQueue, 0);  // Mac de retour : on envoie les liens gardés
+}
+
+/* ---------- File d'attente : liens ajoutés hors ligne, envoyés au retour du Mac ---------- */
+const QSTORE = "import-queue";
+const readQueue = () => { try { return JSON.parse(ls.get(QSTORE)) || []; } catch { return []; } };
+const writeQueue = q => ls.set(QSTORE, JSON.stringify(q));
+function enqueue(text) {
+  const m = String(text || "").match(/https?:\/\/\S+/);
+  if (!m) { toast("Aucun lien trouvé."); return false; }
+  const q = readQueue();
+  if (!q.some(x => x.url === m[0])) { q.push({ url: m[0], added: Date.now() }); writeQueue(q); }
+  toast("Lien gardé : il sera importé dès que le Mac répond");
+  return true;
+}
+let flushing = false;
+async function flushQueue() {
+  if (flushing || offline || !readQueue().length) return;
+  flushing = true;
+  let sent = 0;
+  try {
+    for (const item of readQueue()) {
+      try { await api("/api/recipes", { method: "POST", body: JSON.stringify({ url: item.url }) }); }
+      catch (e) {
+        if (e instanceof TypeError) break;  // Mac de nouveau injoignable : on garde le reste pour plus tard
+        toast(`Lien refusé : ${e.message}`);
+      }
+      writeQueue(readQueue().filter(x => x.url !== item.url));
+      sent++;
+    }
+  } finally { flushing = false; }
+  if (sent) { toast(`${plural(sent, "lien")} en attente ${sent > 1 ? "envoyés" : "envoyé"} au Mac`); route(); }
+}
+function shortUrl(u) {
+  try { const x = new URL(u); return (x.hostname.replace(/^www\./, "") + x.pathname).slice(0, 48); } catch { return u; }
+}
+function since(ts) {
+  const min = Math.round((Date.now() - ts) / 60000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  if (min < 1440) return `il y a ${Math.round(min / 60)} h`;
+  return `le ${new Date(ts).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`;
+}
+function queueHtml() {
+  const q = readQueue();
+  if (!q.length) return "";
+  return `<div class="rule eyebrow">En attente de connexion · ${q.length}</div><div class="queue">${q.map(x => `
+    <div class="qitem"><div class="qicon">${ICONS.clock}</div>
+      <div class="qtext"><b>${esc(shortUrl(x.url))}</b>
+        <span class="meta">${offline ? "Sera importé dès que le Mac répond" : "Envoi au Mac…"} · gardé ${since(x.added)}</span></div>
+      <button class="icon-btn" data-unqueue="${esc(x.url)}" aria-label="Retirer ce lien">${ICONS.close}</button></div>`).join("")}</div>`;
+}
+
+/* ---------- Tri et filtres par macros (mémorisés sur l'appareil) ---------- */
+const DEFAULT_PREFS = { sort: "recent", kcalMax: null, protMin: null, quick: false, badges: [] };
+let prefs = (() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(ls.get("filters")) }; } catch { return { ...DEFAULT_PREFS }; } })();
+const savePrefs = () => ls.set("filters", JSON.stringify(prefs));
+const SORTS = { recent: "Plus récentes", protein: "Plus protéinées", kcal: "Moins caloriques",
+                density: "Meilleur rapport protéines / calories", time: "Plus rapides" };
+const SPORT_BADGES = ["Riche en protéines", "Idéal après l'effort", "Avant l'effort", "Riche en fibres", "Pauvre en sucres"];
+const pp = r => r.nutrition?.per_portion;
+const filtersCount = (p = prefs) => (p.kcalMax != null) + (p.protMin != null) + p.quick + p.badges.length;
+function applyPrefs(list, p = prefs) {
+  const needsNutrition = p.kcalMax != null || p.protMin != null || p.badges.length;
+  const out = list.filter(r => {
+    if (r.status !== "done" || !r.data?.is_recipe) return !filtersCount(p);  // imports en cours : visibles sans filtre
+    const n = pp(r);
+    if (needsNutrition && !n) return false;
+    if (p.kcalMax != null && n.kcal > p.kcalMax) return false;
+    if (p.protMin != null && n.protein_g < p.protMin) return false;
+    if (p.quick && !(total(r.data) && total(r.data) <= 30)) return false;
+    return p.badges.every(b => (r.nutrition?.badges || []).includes(b));
+  });
+  const key = {
+    protein: r => -(pp(r)?.protein_g ?? -Infinity), kcal: r => pp(r)?.kcal ?? Infinity,
+    density: r => -(r.nutrition?.protein_per_100kcal ?? -Infinity), time: r => (r.data && total(r.data)) ?? Infinity,
+  }[p.sort];
+  return key ? [...out].sort((a, b) => key(a) - key(b)) : out;
+}
+function activeFilterChips() {
+  return [
+    prefs.sort !== "recent" && [`Tri : ${SORTS[prefs.sort].toLowerCase()}`, "sort"],
+    prefs.kcalMax != null && [`≤ ${prefs.kcalMax} kcal`, "kcalMax"],
+    prefs.protMin != null && [`≥ ${prefs.protMin} g de protéines`, "protMin"],
+    prefs.quick && ["30 min max", "quick"],
+    ...prefs.badges.map(b => [b, "badge:" + b]),
+  ].filter(Boolean);
+}
+function clearPref(key) {
+  if (key === "sort") prefs.sort = "recent";
+  else if (key === "quick") prefs.quick = false;
+  else if (key.startsWith("badge:")) prefs.badges = prefs.badges.filter(b => b !== key.slice(6));
+  else prefs[key] = null;
+  savePrefs();
+}
+
+function filtersSheet() {
+  const draft = JSON.parse(JSON.stringify(prefs));
+  const el = openSheet(`<h3>Trier et filtrer</h3>
+    <div class="eyebrow" style="margin:4px 0 2px">Trier par</div>
+    ${Object.entries(SORTS).map(([k, v]) => `<label class="check-row"><input type="radio" name="sort" value="${k}"
+      ${draft.sort === k ? "checked" : ""}> ${v}</label>`).join("")}
+    <div class="eyebrow" style="margin:22px 0 2px">Par portion</div>
+    <label class="range"><span>Calories maximum <b id="kv"></b></span>
+      <input type="range" id="kcal" min="200" max="1500" step="50" value="${draft.kcalMax ?? 1500}"></label>
+    <label class="range"><span>Protéines minimum <b id="pv"></b></span>
+      <input type="range" id="prot" min="0" max="60" step="5" value="${draft.protMin ?? 0}"></label>
+    <label class="check-row"><input type="checkbox" id="quick" ${draft.quick ? "checked" : ""}> Prêt en 30 min maximum</label>
+    <div class="eyebrow" style="margin:22px 0 2px">Repères sportifs</div>
+    ${SPORT_BADGES.map(b => `<label class="check-row"><input type="checkbox" data-badge="${esc(b)}"
+      ${draft.badges.includes(b) ? "checked" : ""}> ${b}</label>`).join("")}
+    <div class="actions"><button class="btn ghost" id="freset">Réinitialiser</button><button class="btn" id="fapply"></button></div>`);
+  const $ = q => el.querySelector(q);
+  const refresh = () => {
+    $("#kv").textContent = draft.kcalMax == null ? "sans limite" : `${draft.kcalMax} kcal`;
+    $("#pv").textContent = draft.protMin == null ? "aucun" : `${draft.protMin} g`;
+    $("#fapply").textContent = `Voir ${plural(applyPrefs(readStore(), draft).length, "recette")}`;
+  };
+  el.querySelectorAll("input[name=sort]").forEach(i => i.onchange = () => { draft.sort = i.value; refresh(); });
+  $("#kcal").oninput = e => { const v = Number(e.target.value); draft.kcalMax = v >= 1500 ? null : v; refresh(); };
+  $("#prot").oninput = e => { const v = Number(e.target.value); draft.protMin = v <= 0 ? null : v; refresh(); };
+  $("#quick").onchange = e => { draft.quick = e.target.checked; refresh(); };
+  el.querySelectorAll("[data-badge]").forEach(i => i.onchange = () => {
+    draft.badges = i.checked ? [...draft.badges, i.dataset.badge] : draft.badges.filter(b => b !== i.dataset.badge);
+    refresh();
+  });
+  $("#freset").onclick = () => { prefs = { ...DEFAULT_PREFS }; savePrefs(); el.remove(); route(); };
+  $("#fapply").onclick = () => { prefs = draft; savePrefs(); el.remove(); route(); };
+  refresh();
+}
 const FSTORE = "folders-cache";
 const readFolders = () => { try { return JSON.parse(ls.get(FSTORE)) || []; } catch { return []; } };
 const writeFolders = f => ls.set(FSTORE, JSON.stringify(f));
@@ -311,7 +468,8 @@ function cacheRecipe(r) {
   if (r.status === "done") writeStore([r, ...readStore().filter(x => x.id !== r.id)].sort((a, b) => b.created_at - a.created_at));
 }
 const offlineBanner = () => offline
-  ? `<div class="offline">Mac injoignable : tu consultes ton carnet hors ligne. Allume le Mac pour ajouter des recettes.</div>` : "";
+  ? `<div class="offline">Mac injoignable : tu consultes ton carnet hors ligne. Les liens que tu ajoutes sont gardés
+     et seront importés dès que le Mac répond.</div>` : "";
 
 /* ---------- Utilitaires ---------- */
 function toast(msg) {
@@ -348,9 +506,9 @@ async function home() {
   if (fresh) writeStore(fresh);
   if (freshF) writeFolders(freshF);
   const list = fresh || cached, folders = freshF || cachedF;
-  if (JSON.stringify([list, folders, offline]) !== state) renderHome(list, folders);
+  if (JSON.stringify([list, folders, offline, readQueue(), prefs]) !== state) renderHome(list, folders);
   const busy = list.some(r => r.status === "pending" || r.nutrition_status === "pending") || folders.some(f => f.status === "sorting");
-  timer = offline ? setTimeout(route, RETRY_MS) : busy ? setTimeout(route, 4000) : timer;
+  if (!offline && busy) timer = setTimeout(route, 4000);
 }
 
 function folderTile(f) {
@@ -372,49 +530,77 @@ function renderHome(list, folders = []) {
       <h1>Ton carnet<br><em>de cuisine</em></h1></div>
       <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div>
     ${offlineBanner()}
-    <form class="import" id="add" ${offline ? "hidden" : ""}>
-      <input type="url" name="url" placeholder="Colle un lien TikTok, Instagram…" required aria-label="Lien de la vidéo">
-      <button class="btn">Ajouter</button>
-    </form>`;
+    <form class="import" id="add">
+      <input type="text" inputmode="url" autocomplete="off" name="url" aria-label="Lien de la vidéo"
+        placeholder="${offline ? "Hors ligne : colle un lien, il sera importé plus tard" : "Colle un lien TikTok, Instagram…"}">
+      <button class="btn">${offline ? "Garder" : "Ajouter"}</button>
+    </form>
+    ${queueHtml()}`;
 
   if (!list.length) {
-    $view.innerHTML = header + `<div class="empty fade">${ICONS.book}
+    $view.innerHTML = header + (readQueue().length ? "" : `<div class="empty fade">${ICONS.book}
       <h2>Ton carnet t'attend</h2>
-      <p>Colle le lien d'une vidéo de recette : on la regarde pour toi et on y écrit la recette, ingrédients et étapes compris.</p></div>`;
+      <p>Colle le lien d'une vidéo de recette : on la regarde pour toi et on y écrit la recette, ingrédients et étapes compris.</p></div>`);
   } else {
-    const shown = list.filter(r => !activeTag || (r.data?.tags || []).includes(activeTag));
-    const [first, ...rest] = shown;
+    const byTag = list.filter(r => !activeTag || (r.data?.tags || []).includes(activeTag));
+    const shown = applyPrefs(byTag);
+    const plain = prefs.sort === "recent" && !filtersCount();  // vue par défaut : la dernière recette en grand
+    const [first, ...rest] = plain ? shown : [null, ...shown];
     const foldersRow = folders.length || !offline ? `<div class="rule eyebrow">Mes dossiers</div><div class="folders">
       ${folders.map(folderTile).join("")}
       ${offline ? "" : `<button class="folder new" id="new-folder"><div class="cover">${ICONS.plus}</div>
         <b>Nouveau dossier</b><span class="meta">Healthy, prise de masse…</span></button>`}</div>` : "";
+    const n = filtersCount();
+    const toolbar = done.length ? `<div class="toolbar"><button class="tool" id="filters">${ICONS.sliders} Trier et filtrer${n ? ` · ${n}` : ""}</button>
+      ${activeFilterChips().map(([label, key]) => `<button class="chip on small" data-clear="${esc(key)}" aria-label="Retirer : ${esc(label)}">${esc(label)} ✕</button>`).join("")}</div>` : "";
+    const heading = plain ? "Dans ton carnet"
+      : `${plural(shown.length, "recette")}${prefs.sort !== "recent" ? ` · ${SORTS[prefs.sort].toLowerCase()}` : ""}`;
     $view.innerHTML = header + foldersRow + `
       ${tags.length > 1 ? `<div class="chips"><button class="chip ${activeTag ? "" : "on"}" data-tag="">Tout</button>
         ${tags.map(t => `<button class="chip ${t === activeTag ? "on" : ""}" data-tag="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}
+      ${toolbar}
       <div class="fade">${first ? feature(first) : ""}
-      ${rest.length ? `<div class="rule eyebrow">Dans ton carnet</div><div class="grid">${rest.map(card).join("")}</div>` : ""}</div>`;
+      ${rest.length ? `<div class="rule eyebrow">${esc(heading)}</div><div class="grid">${rest.map(card).join("")}</div>` : ""}
+      ${!shown.length ? `<div class="empty"><p>Aucune recette ne correspond à ces filtres.</p>
+        <button class="btn ghost" id="reset-filters" style="margin-top:12px">Effacer les filtres</button></div>` : ""}</div>`;
     $view.querySelectorAll("[data-tag]").forEach(b => b.onclick = () => { activeTag = b.dataset.tag; renderHome(list, folders); });
-    const nf = document.getElementById("new-folder");
-    if (nf) nf.onclick = () => folderSheet();
+    $view.querySelectorAll("[data-clear]").forEach(b => b.onclick = () => { clearPref(b.dataset.clear); renderHome(list, folders); });
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    on("new-folder", () => folderSheet());
+    on("filters", () => filtersSheet());
+    on("reset-filters", () => { prefs = { ...DEFAULT_PREFS }; savePrefs(); renderHome(list, folders); });
   }
 
+  $view.querySelectorAll("[data-unqueue]").forEach(b => b.onclick = () => {
+    writeQueue(readQueue().filter(x => x.url !== b.dataset.unqueue));
+    renderHome(list, folders);
+  });
   document.getElementById("theme").onclick = toggleTheme;
   document.getElementById("add").onsubmit = async e => {
     e.preventDefault();
+    const form = e.target, url = form.url.value.trim();
+    // Accepte aussi le texte copié depuis TikTok (« Regarde ça ! https://… ») : on y cherche le lien
+    if (!/https?:\/\/\S+/.test(url)) { toast(url ? "Aucun lien trouvé dans ce texte." : "Colle d'abord un lien."); return; }
+    const keep = () => { if (enqueue(url)) { form.reset(); renderHome(list, folders); } };
+    if (offline) return keep();
     try {
-      const rec = await api("/api/recipes", { method: "POST", body: JSON.stringify({ url: e.target.url.value }) });
+      const rec = await api("/api/recipes", { method: "POST", body: JSON.stringify({ url }) });
       go(`#/r/${rec.id}`);
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      if (err instanceof TypeError) { setOffline(true); keep(); }  // le Mac vient de devenir injoignable
+      else toast(err.message);
+    }
   };
   if (typed) document.querySelector("#add input").value = typed;
-  return JSON.stringify([list, folders, offline]);
+  return JSON.stringify([list, folders, offline, readQueue(), prefs]);
 }
 
 function label(r) {
   if (r.status === "pending") return { title: "En cours d'écriture…", meta: "On regarde la vidéo" };
   if (r.status === "error") return { title: "Import impossible", meta: "Touche pour réessayer" };
   const d = r.data, n = r.nutrition?.per_portion;
-  const meta = n ? [minutes(total(d)), `${Math.round(n.kcal)} kcal`, `${Math.round(n.protein_g)} g prot.`]
+  const meta = n ? [minutes(total(d)), `${Math.round(n.kcal)} kcal`, `${Math.round(n.protein_g)} g prot.`,
+                    prefs.sort === "density" && `${String(r.nutrition.protein_per_100kcal).replace(".", ",")} g/100 kcal`]
                  : [minutes(total(d)), d.difficulty, r.author && "@" + r.author];
   return { title: d.title, meta: meta.filter(Boolean).join(" · ") };
 }
@@ -447,7 +633,7 @@ async function detail(id) {
   if (!r) throw new Error("Cette recette n'est pas disponible hors ligne.");
   if (JSON.stringify([r, readFolders(), offline]) !== state) renderDetail(r);
   const busy = r.status === "pending" || r.nutrition_status === "pending";
-  timer = offline ? setTimeout(route, RETRY_MS) : busy ? setTimeout(route, 4000) : timer;
+  if (!offline && busy) timer = setTimeout(route, 4000);
 }
 
 function renderDetail(r) {
@@ -661,12 +847,12 @@ async function folderPage(fid) {
   if (!f) { go("#/"); return; }  // dossier supprimé entre-temps
   const recipes = list || cl;
   if (JSON.stringify([f, recipes, offline]) !== state) renderFolder(f, recipes);
-  timer = offline ? setTimeout(route, RETRY_MS) : f.status === "sorting" ? setTimeout(route, 4000) : timer;
+  if (!offline && f.status === "sorting") timer = setTimeout(route, 4000);
 }
 
 function renderFolder(f, list) {
   recipeBack = `#/d/${f.id}`;
-  const items = list.filter(r => (r.folders || []).includes(f.id));
+  const items = applyPrefs(list.filter(r => (r.folders || []).includes(f.id)), { ...DEFAULT_PREFS, sort: prefs.sort });
   const withN = items.filter(r => r.nutrition?.per_portion);
   const avg = k => Math.round(withN.reduce((sum, r) => sum + r.nutrition.per_portion[k], 0) / withN.length);
   $view.innerHTML = `<div class="top"><button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button>
@@ -837,13 +1023,30 @@ function route() {
   const m = location.hash.match(/^#\/r\/(\w+)/), fm = location.hash.match(/^#\/d\/(\w+)/);
   (m ? detail(m[1]) : fm ? folderPage(fm[1]) : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
 }
+// Raccourci de partage ouvert alors que le Mac est injoignable : le service worker a servi
+// l'appli à la place de /share ; on garde le lien pour l'envoyer plus tard.
+if (location.pathname === "/share") {
+  const q = new URLSearchParams(location.search);
+  setOffline(true);
+  enqueue([q.get("url"), q.get("text"), q.get("title")].filter(Boolean).join(" "));
+  history.replaceState(null, "", "/#/");
+}
 addEventListener("hashchange", route);
 // Retour sur l'appli ou retour du réseau : on revérifie tout de suite si le Mac répond
 addEventListener("online", () => offline && route());
 document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && offline && route());
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!getTheme()) route(); });
 route();
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+if ("serviceWorker" in navigator) {
+  // Nouvelle version installée : on recharge une fois pour l'afficher tout de suite
+  // (pas au tout premier chargement, quand aucune version n'était encore installée)
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hadController && !reloading) { reloading = true; location.reload(); }
+  });
+  navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
+}
 </script>
 </body>
 </html>

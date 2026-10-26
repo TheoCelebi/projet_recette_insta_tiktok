@@ -52,6 +52,17 @@ automatiquement dans les dossiers qui lui correspondent, et à la création d'un
 recettes existantes y sont rangées. Le bouton « Ranger dans un dossier » d'une fiche permet
 de corriger à la main.
 
+## Trier, filtrer, hors ligne
+
+- **Trier et filtrer** : plus protéinées, moins caloriques, meilleur rapport protéines/calories,
+  plus rapides ; filtres calories max, protéines min, prêt en 30 min, repères sportifs.
+  Les choix sont mémorisés sur l'appareil.
+- **Ajout hors ligne** : un lien ajouté quand le Mac est injoignable (formulaire ou partage
+  depuis TikTok via le Raccourci) est gardé sur le téléphone, affiché dans « En attente de
+  connexion », puis envoyé automatiquement dès que le Mac répond (nouvel essai toutes les 10 s).
+  Sur iPhone, Safari et l'appli de l'écran d'accueil ont chacun leur propre mémoire : un lien
+  partagé via le Raccourci (Safari) part quand Safari rejoint le Mac.
+
 ## Lancer
 
 ```bash
