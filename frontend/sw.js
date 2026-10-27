@@ -1,6 +1,6 @@
 // Service worker : permet d'ouvrir l'appli et de voir les photos même quand le Mac est éteint.
 // Les données des recettes sont gardées côté page (localStorage), voir index.html.
-const SHELL = "shell-v9";
+const SHELL = "shell-v10";
 const THUMBS = "thumbs-v1";
 const SHELL_FILES = ["/", "/manifest.json", "/icon.svg", "/icon-180.png",
   "/fonts/fraunces.woff2", "/fonts/fraunces-italic.woff2", "/fonts/dmsans.woff2"];
@@ -37,7 +37,10 @@ self.addEventListener("fetch", e => {
   // Partage (/share) : normalement traité par le Mac ; s'il est injoignable, on sert l'appli,
   // qui garde le lien en file d'attente et l'enverra plus tard.
   if (e.request.mode === "navigate" && url.pathname === "/share") {
-    e.respondWith(fetch(e.request).catch(() => caches.match("/")));
+    // Mac éteint (erreur réseau) ou serveur arrêté derrière Tailscale (502/503/504)
+    e.respondWith(fetch(e.request)
+      .then(res => [502, 503, 504].includes(res.status) ? caches.match("/") : res)
+      .catch(() => caches.match("/")));
     return;
   }
 

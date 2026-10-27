@@ -283,8 +283,15 @@
 const $view = document.getElementById("view");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const api = (path, opts = {}) => fetch(path, { headers: { "Content-Type": "application/json" }, ...opts })
-  .then(r => r.ok ? r.json() : r.json().catch(() => ({})).then(e =>
-    Promise.reject(new Error(typeof e.detail === "string" ? e.detail : "Vérifie les champs du formulaire."))));
+  .then(r => {
+    if (r.ok) return r.json();
+    // 502/503/504 : le Mac répond (Tailscale) mais le serveur de l'appli est arrêté.
+    // Même traitement qu'une coupure réseau (TypeError) : hors ligne, file d'attente, réessais.
+    if ([502, 503, 504].includes(r.status)) throw new TypeError("Serveur de l'appli arrêté sur le Mac");
+    return r.json().catch(() => ({})).then(e => Promise.reject(new Error(
+      typeof e.detail === "string" ? e.detail
+        : r.status === 422 ? "Vérifie les champs du formulaire." : `Erreur du serveur (${r.status}).`)));
+  });
 let timer, activeTag = "";
 
 const ICONS = {
