@@ -1481,6 +1481,7 @@ function renderCourses(list) {
     ${todo.length ? `<ul class="shop">${todo.map(row).join("")}</ul>` : list.length ? `<p class="meta">Tout est dans le panier.</p>` : ""}
     ${done.length ? `<div class="rule eyebrow">Dans le panier · ${done.length}</div><ul class="shop">${done.map(row).join("")}</ul>
       <button class="btn ghost" id="clear-done">Retirer les articles cochés</button>` : ""}
+    ${list.length ? `<button class="btn ghost" id="clear-all" style="margin-top:10px;color:var(--danger)">Vider toute la liste</button>` : ""}
     ${!list.length ? `<div class="empty fade">${ICONS.cart}<h2>Ta liste est vide</h2>
       <p>Ouvre une recette et touche « Ajouter à la liste de courses » : ses ingrédients arrivent ici, regroupés et additionnés.</p></div>` : ""}`;
   const ids = li => li.dataset.ids.split(",");
@@ -1506,6 +1507,12 @@ function renderCourses(list) {
   const cd = document.getElementById("clear-done");
   if (cd) cd.onclick = async () => {
     try { writeShop(await api("/api/shopping?checked=true", { method: "DELETE" })); renderCourses(readShop()); }
+    catch (e) { toast(e instanceof TypeError ? "Mac injoignable : réessaie plus tard." : e.message); }
+  };
+  const ca = document.getElementById("clear-all");
+  if (ca) ca.onclick = async () => {
+    if (!confirm("Vider toute la liste de courses ?")) return;
+    try { writeShop(await api("/api/shopping?checked=false", { method: "DELETE" })); ls.set(SOPS, "[]"); renderCourses(readShop()); }
     catch (e) { toast(e instanceof TypeError ? "Mac injoignable : réessaie plus tard." : e.message); }
   };
   return JSON.stringify([list, offline]);
