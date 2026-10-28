@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import re
+import time
 import traceback
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -28,7 +29,7 @@ def _load_env(path: str) -> None:
 
 _load_env(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from . import db, nutrition  # noqa: E402
+from . import db, nutrition, products  # noqa: E402
 from .extractor import extract_recipe  # noqa: E402
 from .media import fetch  # noqa: E402
 
@@ -254,6 +255,46 @@ def resort_folder(fid: str) -> dict:
 def delete_folder(fid: str) -> dict:
     db.delete_folder(fid)
     return {"ok": True}
+
+
+# ---------- Produits (code-barres → Open Food Facts) ----------
+
+PRODUCT_TTL = 30 * 24 * 3600  # les fiches Open Food Facts sont réinterrogées au bout de 30 jours
+BARCODE_RE = re.compile(r"^\d{6,14}$")
+
+
+@app.get("/api/products")
+def saved_products() -> list[dict]:
+    return db.list_saved_products()
+
+
+@app.get("/api/products/{code}")
+def get_product(code: str) -> dict:
+    if not BARCODE_RE.match(code):
+        raise HTTPException(400, "Code-barres invalide : il doit contenir de 6 à 14 chiffres.")
+    cached = db.get_product(code)
+    if cached and time.time() - cached["fetched_at"] < PRODUCT_TTL:
+        return cached
+    try:
+        return db.upsert_product(products.fetch(code))
+    except products.NotFound:
+        raise HTTPException(404, "Produit inconnu d'Open Food Facts.") from None
+    except Exception:  # noqa: BLE001 - Open Food Facts injoignable : on rend la fiche en cache si on l'a
+        if cached:
+            return cached
+        raise HTTPException(503, "Open Food Facts ne répond pas, réessaie dans un instant.") from None
+
+
+class SavedIn(BaseModel):
+    saved: bool
+
+
+@app.put("/api/products/{code}/saved")
+def save_product(code: str, req: SavedIn) -> dict:
+    if not db.get_product(code):
+        raise HTTPException(404, "Produit introuvable.")
+    db.set_product_saved(code, req.saved)
+    return db.get_product(code)
 
 
 # ---------- Partage, front ----------

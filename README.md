@@ -63,6 +63,15 @@ de corriger à la main.
   Sur iPhone, Safari et l'appli de l'écran d'accueil ont chacun leur propre mémoire : un lien
   partagé via le Raccourci (Safari) part quand Safari rejoint le Mac.
 
+## Scanner un produit
+
+Le bouton code-barres de l'accueil ouvre la caméra (lecteur intégré du navigateur quand il
+existe, sinon la bibliothèque ZXing, embarquée dans `frontend/vendor/`). Le serveur interroge
+Open Food Facts (`backend/products.py`) et garde la fiche en cache 30 jours : valeurs pour
+100 g et par portion, Nutri-Score, protéines pour 100 kcal, repères (riche en protéines…).
+Les produits ajoutés à « Mes produits » apparaissent sur l'accueil. Saisie manuelle du code
+possible si la caméra n'est pas disponible.
+
 ## Lancer
 
 ```bash
@@ -126,5 +135,7 @@ directement dans le menu Partager (manifest `share_target`).
 - Pas de comptes utilisateurs : c'est un outil perso, à ne pas exposer tel quel sur Internet.
 
 ## Crédits
+
+Lecteur de codes-barres [ZXing](https://github.com/zxing-js/library) 0.21.3 (licence MIT). Données produits : [Open Food Facts](https://fr.openfoodfacts.org) (licence ODbL).
 
 Polices [Fraunces](https://fonts.google.com/specimen/Fraunces) et [DM Sans](https://fonts.google.com/specimen/DM+Sans), sous licence SIL Open Font License, intégrées dans `frontend/fonts/` pour fonctionner hors ligne.

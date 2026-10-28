@@ -43,6 +43,13 @@ def init() -> None:
             error TEXT,                            -- dernier échec du rangement auto
             created_at REAL NOT NULL
         )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS products (
+            code TEXT PRIMARY KEY,             -- code-barres
+            data TEXT NOT NULL,                -- produit normalisé (JSON)
+            saved INTEGER NOT NULL DEFAULT 0,  -- dans « Mes produits »
+            fetched_at REAL NOT NULL,
+            saved_at REAL
+        )""")
         c.execute("""CREATE TABLE IF NOT EXISTS recipe_folders (
             recipe_id TEXT NOT NULL,
             folder_id TEXT NOT NULL,
@@ -167,3 +174,35 @@ def set_recipe_folders(rid: str, folder_ids: list[str]) -> None:
         c.execute("DELETE FROM recipe_folders WHERE recipe_id = ?", (rid,))
         c.executemany("INSERT OR IGNORE INTO recipe_folders (recipe_id, folder_id) VALUES (?, ?)",
                       [(rid, fid) for fid in folder_ids])
+
+
+# ---------- Produits (Open Food Facts) ----------
+
+def _product(r: sqlite3.Row) -> dict:
+    return {**json.loads(r["data"]), "saved": bool(r["saved"]), "fetched_at": r["fetched_at"]}
+
+
+def get_product(code: str) -> dict | None:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM products WHERE code = ?", (code,)).fetchone()
+    return _product(r) if r else None
+
+
+def upsert_product(data: dict) -> dict:
+    with _conn() as c:
+        c.execute("""INSERT INTO products (code, data, fetched_at) VALUES (?, ?, ?)
+                     ON CONFLICT(code) DO UPDATE SET data = excluded.data, fetched_at = excluded.fetched_at""",
+                  (data["code"], json.dumps(data, ensure_ascii=False), time.time()))
+    return get_product(data["code"])
+
+
+def set_product_saved(code: str, saved: bool) -> None:
+    with _conn() as c:
+        c.execute("UPDATE products SET saved = ?, saved_at = ? WHERE code = ?",
+                  (int(saved), time.time() if saved else None, code))
+
+
+def list_saved_products() -> list[dict]:
+    with _conn() as c:
+        rows = c.execute("SELECT * FROM products WHERE saved = 1 ORDER BY saved_at DESC").fetchall()
+    return [_product(r) for r in rows]

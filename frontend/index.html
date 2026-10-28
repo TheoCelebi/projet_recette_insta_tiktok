@@ -242,6 +242,31 @@
   .sheet .actions { margin-top: 18px; }
   .err-text { color: var(--danger); font-size: 13px; min-height: 18px; }
 
+  /* Scanner et produits */
+  .top-actions { display: flex; gap: 8px; }
+  .scanner { position: relative; border-radius: 14px; overflow: hidden; background: #000; aspect-ratio: 3 / 4; max-height: 60vh; margin: 14px auto 0; width: 100%; }
+  .scanner video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .scan-frame { position: absolute; left: 10%; right: 10%; top: 38%; height: 24%; border: 2px solid rgba(255, 255, 255, .9);
+                border-radius: 12px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); }
+  .scan-frame::after { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; height: 2px; background: var(--accent);
+                       animation: scanline 1.6s ease-in-out infinite alternate; }
+  @keyframes scanline { from { transform: translateY(-28px); } to { transform: translateY(28px); } }
+  #scan-status { text-align: center; margin: 12px 0 18px; }
+  .pimg { margin: 0 -16px 18px; background: var(--wash); display: grid; place-items: center; height: 240px; }
+  .pimg img { max-height: 210px; max-width: 70%; object-fit: contain; border-radius: 6px; }
+  .pimg svg { width: 48px; height: 48px; color: var(--muted); }
+  .nscore { display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; padding: 4px 12px 4px 4px; font-size: 13px;
+            font-weight: 500; background: var(--wash); color: var(--soft); }
+  .nscore b { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 13px; text-transform: uppercase; }
+  .products { display: flex; gap: 12px; overflow-x: auto; margin: 0 -16px 22px; padding: 2px 16px; scrollbar-width: none; }
+  .products::-webkit-scrollbar { display: none; }
+  .prod { flex: none; width: 112px; text-decoration: none; }
+  .prod .pic { width: 112px; height: 112px; border-radius: 8px; background: var(--card) center/contain no-repeat;
+               border: 1px solid var(--line); display: grid; place-items: center; color: var(--muted); }
+  .prod .pic svg { width: 28px; height: 28px; }
+  .prod b { display: block; font: 400 15px/1.2 var(--serif); margin-top: 7px; overflow: hidden; display: -webkit-box;
+            -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
   /* Gestes : tirer pour recharger, glisser depuis le bord pour revenir */
   .ptr { position: fixed; top: calc(env(safe-area-inset-top) + 8px); left: 50%; z-index: 40; width: 40px; height: 40px;
          margin-left: -20px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); color: var(--accent);
@@ -299,6 +324,7 @@ const ICONS = {
   moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"/></svg>',
   sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  barcode: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6v12M7 6v12M11 6v12M14 6v12M17 6v12M20 6v12"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   pan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="13" r="7"/><path d="M17 13h5"/></svg>',
@@ -479,6 +505,9 @@ function filtersSheet() {
   $("#fapply").onclick = () => { prefs = draft; savePrefs(); el.remove(); route(); };
   refresh();
 }
+const PSTORE = "products-cache";
+const readProducts = () => { try { return JSON.parse(ls.get(PSTORE)) || []; } catch { return []; } };
+const writeProducts = p => ls.set(PSTORE, JSON.stringify(p));
 const FSTORE = "folders-cache";
 const readFolders = () => { try { return JSON.parse(ls.get(FSTORE)) || []; } catch { return []; } };
 const writeFolders = f => ls.set(FSTORE, JSON.stringify(f));
@@ -522,12 +551,13 @@ async function home() {
   const cached = readStore(), cachedF = readFolders();
   let state = null;
   if (cached.length || cachedF.length) state = renderHome(cached, cachedF);
-  const [fresh, freshF] = await Promise.all([getJSON("/api/recipes"), getJSON("/api/folders")]);
+  const [fresh, freshF, freshP] = await Promise.all([getJSON("/api/recipes"), getJSON("/api/folders"), getJSON("/api/products")]);
   if (token !== navToken) return;  // l'utilisateur a changé d'écran entre-temps
   if (fresh) writeStore(fresh);
   if (freshF) writeFolders(freshF);
+  if (freshP) writeProducts(freshP);
   const list = fresh || cached, folders = freshF || cachedF;
-  if (JSON.stringify([list, folders, offline, readQueue(), prefs]) !== state) renderHome(list, folders);
+  if (JSON.stringify([list, folders, offline, readQueue(), prefs, readProducts()]) !== state) renderHome(list, folders);
   const busy = list.some(r => r.status === "pending" || r.nutrition_status === "pending") || folders.some(f => f.status === "sorting");
   if (!offline && busy) timer = setTimeout(route, 4000);
 }
@@ -549,7 +579,8 @@ function renderHome(list, folders = []) {
 
   const header = `<div class="top"><div><div class="eyebrow">${esc(today())}</div>
       <h1>Ton carnet<br><em>de cuisine</em></h1></div>
-      <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div>
+      <div class="top-actions"><a class="icon-btn" href="#/scan" aria-label="Scanner un code-barres">${ICONS.barcode}</a>
+      <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div></div>
     ${offlineBanner()}
     <form class="import" id="add">
       <input type="text" inputmode="url" autocomplete="off" name="url" aria-label="Lien de la vidéo"
@@ -576,7 +607,12 @@ function renderHome(list, folders = []) {
       ${activeFilterChips().map(([label, key]) => `<button class="chip on small" data-clear="${esc(key)}" aria-label="Retirer : ${esc(label)}">${esc(label)} ✕</button>`).join("")}</div>` : "";
     const heading = plain ? "Dans ton carnet"
       : `${plural(shown.length, "recette")}${prefs.sort !== "recent" ? ` · ${SORTS[prefs.sort].toLowerCase()}` : ""}`;
-    $view.innerHTML = header + foldersRow + `
+    const saved = readProducts();
+    const productsRow = saved.length ? `<div class="rule eyebrow">Mes produits</div><div class="products">
+      ${saved.map(p => `<a class="prod" href="#/p/${esc(p.code)}"><div class="pic" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}">
+        ${p.image ? "" : ICONS.barcode}</div><b>${esc(p.name)}</b>
+        <span class="meta">${p.per_100g?.protein_g != null ? `${fmtN(p.per_100g.protein_g, "g")} prot. / 100 g` : esc(p.brand)}</span></a>`).join("")}</div>` : "";
+    $view.innerHTML = header + foldersRow + productsRow + `
       ${tags.length > 1 ? `<div class="chips"><button class="chip ${activeTag ? "" : "on"}" data-tag="">Tout</button>
         ${tags.map(t => `<button class="chip ${t === activeTag ? "on" : ""}" data-tag="${esc(t)}">${esc(t)}</button>`).join("")}</div>` : ""}
       ${toolbar}
@@ -613,7 +649,7 @@ function renderHome(list, folders = []) {
     }
   };
   if (typed) document.querySelector("#add input").value = typed;
-  return JSON.stringify([list, folders, offline, readQueue(), prefs]);
+  return JSON.stringify([list, folders, offline, readQueue(), prefs, readProducts()]);
 }
 
 function label(r) {
@@ -966,6 +1002,159 @@ function rangeSheet(r) {
   };
 }
 
+/* ---------- Scanner de code-barres ---------- */
+let scanner = null;  // { stop } du scanner actif, arrêté dès qu'on quitte l'écran
+function stopScanner() { scanner?.stop(); scanner = null; }
+const ZXING_SRC = "/vendor/zxing-0.21.3.min.js";
+function loadZxing() {
+  if (window.ZXing) return Promise.resolve();
+  return new Promise((ok, ko) => {
+    const sc = Object.assign(document.createElement("script"), { src: ZXING_SRC, onload: ok, onerror: ko });
+    document.head.append(sc);
+  });
+}
+
+async function scanPage() {
+  ++navToken;
+  scrollTo(0, 0);
+  $view.innerHTML = `<div class="top"><button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
+    <div class="fhead"><div class="eyebrow">Mes produits</div><h2>Scanner un produit</h2></div>
+    <div class="scanner"><video id="cam" playsinline muted autoplay></video><div class="scan-frame"></div></div>
+    <p class="meta" id="scan-status">Ouverture de la caméra…</p>
+    <form class="import" id="manual"><input name="code" inputmode="numeric" autocomplete="off" aria-label="Code-barres"
+      placeholder="Ou tape le code (8 à 13 chiffres)"><button class="btn">Voir</button></form>`;
+  bindBack("#/");
+  const status = document.getElementById("scan-status");
+  const found = code => { stopScanner(); navigator.vibrate?.(80); go(`#/p/${code}`); };
+  document.getElementById("manual").onsubmit = e => {
+    e.preventDefault();
+    const code = e.target.code.value.replace(/\D/g, "");
+    if (code.length < 6 || code.length > 14) { toast("Un code-barres compte de 8 à 13 chiffres."); return; }
+    found(code);
+  };
+
+  const video = document.getElementById("cam");
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+  } catch (e) {
+    status.textContent = e.name === "NotAllowedError"
+      ? "Accès à la caméra refusé. Sur iPhone : Réglages › Safari › Caméra › Autoriser, puis reviens ici. Tu peux aussi taper le code."
+      : "Caméra indisponible sur cet appareil : tape le code-barres ci-dessous.";
+    return;
+  }
+  if (!document.body.contains(video)) { stream.getTracks().forEach(t => t.stop()); return; }  // écran déjà quitté
+  video.srcObject = stream;
+  let stopped = false, zreader = null;
+  scanner = { stop() { stopped = true; zreader?.reset(); stream.getTracks().forEach(t => t.stop()); } };
+  status.textContent = "Vise le code-barres, il est lu automatiquement.";
+
+  // Lecteur intégré au navigateur quand il existe (Android, Chrome) ; sinon bibliothèque ZXing (iPhone)
+  const native = "BarcodeDetector" in window &&
+    (await BarcodeDetector.getSupportedFormats().catch(() => [])).includes("ean_13");
+  if (native) {
+    const det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const [hit] = await det.detect(video);
+        if (hit) return found(hit.rawValue);
+      } catch {}
+      setTimeout(tick, 200);
+    };
+    tick();
+    return;
+  }
+  try { await loadZxing(); } catch { status.textContent = "Lecteur indisponible hors ligne : tape le code-barres."; return; }
+  if (stopped) return;
+  const hints = new Map([[ZXing.DecodeHintType.POSSIBLE_FORMATS,
+    [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E]]]);
+  zreader = new ZXing.BrowserMultiFormatReader(hints, 250);
+  zreader.decodeFromStream(stream, video, res => { if (res && !stopped) found(res.getText()); });
+}
+
+const NSCORE_COLORS = { a: "#038141", b: "#85BB2F", c: "#FECB02", d: "#EE8100", e: "#E63E11" };
+const productState = {};  // unité affichée par produit (100 g ou portion)
+
+async function productPage(code) {
+  const token = ++navToken;
+  scrollTo(0, 0);
+  const cached = readProducts().find(p => p.code === code);
+  let state = null;
+  if (cached) state = renderProduct(cached);
+  else $view.innerHTML = `<div class="top"><button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
+    <div class="center"><div class="spinner"></div><p class="meta">Recherche du produit ${esc(code)}…</p></div>`;
+  bindBack("#/");
+  let p = null, error = null;
+  try { p = await getJSON(`/api/products/${code}`); } catch (e) { error = e.message; }
+  if (token !== navToken) return;
+  if (p) {
+    if (p.saved) writeProducts([p, ...readProducts().filter(x => x.code !== code)]);
+    if (JSON.stringify([p, offline]) !== state) renderProduct(p);
+    return;
+  }
+  if (cached) { if (JSON.stringify([cached, offline]) !== state) renderProduct(cached); return; }
+  $view.innerHTML = `<div class="top"><button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
+    ${offlineBanner()}
+    <div class="center fade"><h2>${offline ? "Produit indisponible hors ligne" : "Produit introuvable"}</h2>
+      <p class="meta" style="max-width:380px">${offline ? "Il faut que le Mac réponde pour interroger Open Food Facts."
+        : esc(error || "Ce code-barres n'est pas dans Open Food Facts.")}</p>
+      <a class="btn ghost" href="#/scan" style="text-decoration:none">Scanner un autre produit</a></div>`;
+  bindBack("#/");
+}
+
+function renderProduct(p) {
+  const st = productState[p.code] ||= { view: "100g" };
+  const vals = st.view === "serving" && p.per_serving ? p.per_serving : p.per_100g;
+  const label = st.view === "serving" && p.per_serving ? `par portion (${esc(p.serving_label || p.serving_g + " g")})` : "pour 100 g";
+  let nutri = `<p class="meta">Pas de valeurs nutritionnelles sur la fiche de ce produit.</p>`;
+  if (vals) {
+    const P = vals.protein_g || 0, C = vals.carbs_g || 0, F = vals.fat_g || 0, e = 4 * P + 4 * C + 9 * F || 1;
+    const sp = { protein: Math.round(400 * P / e), carbs: Math.round(400 * C / e), fat: Math.round(900 * F / e) };
+    const row = (k, name, sub) => `<tr class="${sub ? "sub" : ""}"><td>${name}</td><td class="v">${fmtN(vals[k], "g")}</td></tr>`;
+    nutri = `${p.per_serving ? `<div class="seg" role="group" aria-label="Unité">
+        <button data-pview="100g" class="${st.view !== "serving" ? "on" : ""}">100 g</button>
+        <button data-pview="serving" class="${st.view === "serving" ? "on" : ""}">Portion</button></div>` : ""}
+      <div class="kcal"><b>${vals.kcal != null ? Math.round(vals.kcal) : "–"}</b><span>kcal ${label}</span></div>
+      <div class="ebar" aria-hidden="true"><i style="width:${sp.protein}%;background:var(--accent)"></i>
+        <i style="width:${sp.carbs}%;background:var(--carb)"></i><i style="width:${sp.fat}%;background:var(--fat)"></i></div>
+      <div class="legend">
+        <div><span class="dot" style="background:var(--accent)"></span>Protéines<b>${fmtN(vals.protein_g, "g")}</b>${sp.protein} % de l'énergie</div>
+        <div><span class="dot" style="background:var(--carb)"></span>Glucides<b>${fmtN(vals.carbs_g, "g")}</b>${sp.carbs} % de l'énergie</div>
+        <div><span class="dot" style="background:var(--fat)"></span>Lipides<b>${fmtN(vals.fat_g, "g")}</b>${sp.fat} % de l'énergie</div>
+      </div>
+      <table class="nt">${row("protein_g", "Protéines")}${row("carbs_g", "Glucides")}${row("sugars_g", "dont sucres", true)}
+        ${row("fat_g", "Lipides")}${row("saturated_fat_g", "dont saturés", true)}${row("fiber_g", "Fibres")}${row("salt_g", "Sel")}
+        ${p.protein_per_100kcal != null ? `<tr><td>Protéines pour 100 kcal</td><td class="v">${fmtN(p.protein_per_100kcal, "g")}</td></tr>` : ""}</table>`;
+  }
+  $view.innerHTML = `<div class="detail fade">
+    <div class="top"><button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
+    ${offlineBanner()}
+    <div class="pimg">${p.image ? `<img src="${esc(p.image)}" alt="">` : ICONS.barcode}</div>
+    <div class="eyebrow">${esc([p.brand, p.quantity].filter(Boolean).join(" · ") || "Produit")}</div>
+    <h2>${esc(p.name)}</h2>
+    <div class="badges">${p.nutriscore ? `<span class="nscore"><b style="background:${NSCORE_COLORS[p.nutriscore]};${p.nutriscore === "c" ? "color:#3a2a00" : ""}">${p.nutriscore}</b>Nutri-Score</span>` : ""}
+      ${p.badges.map(b => `<span class="badge">${esc(b)}</span>`).join("")}</div>
+    <div class="nutri" style="border:0;padding-top:4px">${nutri}</div>
+    <div class="actions">
+      ${offline ? "" : `<button class="btn${p.saved ? " ghost" : ""}" id="psave">${p.saved ? "Retirer de mes produits" : "Ajouter à mes produits"}</button>`}
+      <a class="btn ghost" href="#/scan" style="text-decoration:none">Scanner un autre</a></div>
+    <p class="fine">Valeurs de l'étiquette d'après Open Food Facts, base collaborative : vérifie sur l'emballage en cas de doute.
+      Code ${esc(p.code)} · <a href="${esc(p.source_url)}" target="_blank" rel="noopener">voir la fiche</a>.</p></div>`;
+  bindBack("#/");
+  $view.querySelectorAll("[data-pview]").forEach(b => b.onclick = () => { st.view = b.dataset.pview; renderProduct(p); });
+  const save = document.getElementById("psave");
+  if (save) save.onclick = async () => {
+    try {
+      const upd = await api(`/api/products/${p.code}/saved`, { method: "PUT", body: JSON.stringify({ saved: !p.saved }) });
+      writeProducts(upd.saved ? [upd, ...readProducts().filter(x => x.code !== upd.code)] : readProducts().filter(x => x.code !== upd.code));
+      toast(upd.saved ? "Ajouté à mes produits" : "Retiré de mes produits");
+      renderProduct(upd);
+    } catch (e) { toast(e instanceof TypeError ? "Mac injoignable : réessaie plus tard." : e.message); }
+  };
+  return JSON.stringify([p, offline]);
+}
+
 /* ---------- Mode cuisine : une étape à la fois, écran allumé, minuteurs ---------- */
 function findDuration(text) {
   const m = text.match(/(\d+(?:[.,]\d+)?)\s*(?:à\s*\d+\s*)?(h|heures?|min(?:utes?)?|s(?:ec(?:ondes?)?)?)\b/i);
@@ -1100,8 +1289,9 @@ function go(hash) {
 }
 function route() {
   clearTimeout(timer);
-  const m = location.hash.match(/^#\/r\/(\w+)/), fm = location.hash.match(/^#\/d\/(\w+)/);
-  (m ? detail(m[1]) : fm ? folderPage(fm[1]) : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
+  stopScanner();
+  const h = location.hash, m = h.match(/^#\/r\/(\w+)/), fm = h.match(/^#\/d\/(\w+)/), pm = h.match(/^#\/p\/(\d+)/);
+  (m ? detail(m[1]) : fm ? folderPage(fm[1]) : pm ? productPage(pm[1]) : h === "#/scan" ? scanPage() : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
 }
 // Raccourci de partage ouvert alors que le Mac est injoignable : le service worker a servi
 // l'appli à la place de /share ; on garde le lien pour l'envoyer plus tard.
