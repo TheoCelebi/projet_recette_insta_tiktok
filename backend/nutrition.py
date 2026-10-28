@@ -219,7 +219,8 @@ def classify(folder: dict, recipes: list[dict]) -> list[str]:
         "dossier": {"nom": folder["name"], "description": folder.get("description") or ""},
         "recettes": [_brief(r) for r in recipes],
     }
-    m = structured(CLASSIFY_SYSTEM, json.dumps(payload, ensure_ascii=False), FolderMatch, effort="medium")
+    m = structured(CLASSIFY_SYSTEM, json.dumps(payload, ensure_ascii=False), FolderMatch,
+                   effort="medium", model="sonnet")  # tâche simple : Sonnet suffit et ménage le quota
     valid = {r["id"] for r in recipes}
     return [rid for rid in m.recipe_ids if rid in valid]
 

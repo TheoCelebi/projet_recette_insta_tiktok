@@ -17,22 +17,22 @@ from typing import TypeVar
 import anthropic
 from pydantic import BaseModel
 
-MODEL = "claude-opus-5-5"
+MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"}
 
 T = TypeVar("T", bound=BaseModel)
 
 
 def structured(system: str, content: list[dict] | str, schema: type[T], effort: str = "medium",
-               client: anthropic.Anthropic | None = None) -> T:
+               client: anthropic.Anthropic | None = None, model: str = "opus") -> T:
     """Envoie `content` à Claude et renvoie une instance validée de `schema`."""
     if isinstance(content, str):
         content = [{"type": "text", "text": content}]
     if client is None and not os.environ.get("ANTHROPIC_API_KEY", "").startswith("sk-ant-"):
-        return _with_claude_code(system, content, schema, effort)
-    return _with_api(system, content, schema, effort, client or anthropic.Anthropic())
+        return _with_claude_code(system, content, schema, effort, model)
+    return _with_api(system, content, schema, effort, client or anthropic.Anthropic(), model)
 
 
-def _with_claude_code(system: str, content: list[dict], schema: type[T], effort: str) -> T:
+def _with_claude_code(system: str, content: list[dict], schema: type[T], effort: str, model: str) -> T:
     cli = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
     if not os.path.exists(cli):
         raise RuntimeError("Ni clé API Anthropic ni Claude Code installé.")
@@ -40,7 +40,7 @@ def _with_claude_code(system: str, content: list[dict], schema: type[T], effort:
     env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
     errfile = tempfile.TemporaryFile(mode="w+")  # fichier plutôt que tube : pas de blocage si stderr est bavard
     proc = subprocess.Popen(
-        [cli, "-p", "--model", "opus", "--effort", effort,
+        [cli, "-p", "--model", model, "--effort", effort,
          "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
          "--no-session-persistence", "--tools", "", "--system-prompt", system,
          "--json-schema", json.dumps(schema.model_json_schema())],
@@ -81,9 +81,9 @@ def _with_claude_code(system: str, content: list[dict], schema: type[T], effort:
 
 
 def _with_api(system: str, content: list[dict], schema: type[T], effort: str,
-              client: anthropic.Anthropic) -> T:
+              client: anthropic.Anthropic, model: str) -> T:
     response = client.beta.messages.parse(
-        model=MODEL,
+        model=MODELS[model],
         max_tokens=16000,
         system=system,
         messages=[{"role": "user", "content": content}],
