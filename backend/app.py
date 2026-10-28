@@ -123,6 +123,8 @@ def compute_nutrition(rid: str, assign_folders: bool = False) -> None:
     try:
         folders = db.list_folders() if assign_folders else []
         summary, folder_ids = nutrition.analyze(r["data"], folders)
+        if links := db.ingredient_products(rid):  # produits scannés : valeurs de leur étiquette
+            summary = nutrition.apply_products(summary, r["data"], links)
         db.update(rid, nutrition=summary, nutrition_status="done")
         db.add_to_folders(rid, folder_ids)
     except Exception as e:  # noqa: BLE001
@@ -364,6 +366,107 @@ def save_product(code: str, req: SavedIn) -> dict:
         raise HTTPException(404, "Produit introuvable.")
     db.set_product_saved(code, req.saved)
     return db.get_product(code)
+
+
+# ---------- Liste de courses ----------
+
+class FromRecipe(BaseModel):
+    recipe_id: str
+    servings: int | None = Field(default=None, ge=1, le=100)
+
+
+class ShoppingIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class ShoppingPatch(BaseModel):
+    checked: bool
+
+
+class LinkProduct(BaseModel):
+    code: str
+
+
+@app.get("/api/shopping")
+def shopping() -> list[dict]:
+    return db.list_shopping()
+
+
+@app.post("/api/shopping/from-recipe")
+def shopping_from_recipe(req: FromRecipe) -> dict:
+    """Ajoute les ingrédients d'une recette, pour le nombre de portions voulu. Si la recette est
+    déjà dans la liste, ses articles pas encore achetés sont remplacés (pas de doublons)."""
+    r = _recipe_or_404(req.recipe_id)
+    d = r["data"] or {}
+    if r["status"] != "done" or not d.get("ingredients"):
+        raise HTTPException(409, "Cette recette n'a pas d'ingrédients à ajouter.")
+    base = d.get("servings") or 1
+    ratio = (req.servings or base) / base
+    db.delete_shopping(recipe_id=r["id"])
+    items = [{"name": i["name"], "quantity": i.get("quantity"), "unit": i.get("unit", ""), "note": i.get("note", ""),
+              "ratio": ratio, "recipe_id": r["id"], "recipe_title": d["title"], "ingredient_index": k}
+             for k, i in enumerate(d["ingredients"]) if i.get("name")]
+    db.add_shopping_items(items)
+    return {"added": len(items), "items": db.list_shopping()}
+
+
+@app.post("/api/shopping")
+def shopping_add(req: ShoppingIn) -> list[dict]:
+    db.add_shopping_items([{"name": req.name.strip()}])
+    return db.list_shopping()
+
+
+@app.patch("/api/shopping/{sid}")
+def shopping_check(sid: str, req: ShoppingPatch) -> list[dict]:
+    if not db.get_shopping_item(sid):
+        raise HTTPException(404, "Article introuvable.")
+    db.update_shopping_item(sid, checked=int(req.checked))
+    return db.list_shopping()
+
+
+@app.delete("/api/shopping/{sid}")
+def shopping_delete(sid: str) -> list[dict]:
+    db.delete_shopping(sid)
+    return db.list_shopping()
+
+
+@app.delete("/api/shopping")
+def shopping_clear(checked: bool = True) -> list[dict]:
+    db.delete_shopping(checked_only=checked)
+    return db.list_shopping()
+
+
+@app.post("/api/shopping/{sid}/product")
+def shopping_link_product(sid: str, req: LinkProduct) -> dict:
+    """Produit scanné en magasin pour cet article : l'article est coché et, s'il vient d'une
+    recette, ses valeurs nutritionnelles sont recalculées avec l'étiquette du produit."""
+    item = db.get_shopping_item(sid)
+    product = db.get_product(req.code)
+    if not item or not product:
+        raise HTTPException(404, "Article ou produit introuvable.")
+    db.update_shopping_item(sid, checked=1, product_code=req.code)
+    out = {"item": db.get_shopping_item(sid), "items": db.list_shopping(), "recipe": None}
+    rid, idx = item["recipe_id"], item["ingredient_index"]
+    if rid and idx is not None and (r := db.get(rid)):
+        db.set_ingredient_product(rid, idx, req.code)
+        if r["nutrition"]:
+            before = r["nutrition"]["per_portion"]
+            new = nutrition.apply_products(r["nutrition"], r["data"], db.ingredient_products(rid))
+            db.update(rid, nutrition=new)
+            out["recipe"] = {"id": rid, "title": r["data"]["title"],
+                             "before": {k: before[k] for k in ("kcal", "protein_g")},
+                             "after": {k: new["per_portion"][k] for k in ("kcal", "protein_g")}}
+    return out
+
+
+@app.delete("/api/recipes/{rid}/ingredients/{idx}/product")
+def unlink_product(rid: str, idx: int) -> dict:
+    """Revenir à l'estimation pour un ingrédient (produit retiré)."""
+    r = _recipe_or_404(rid)
+    db.set_ingredient_product(rid, idx, None)
+    if r["nutrition"]:
+        db.update(rid, nutrition=nutrition.apply_products(r["nutrition"], r["data"], db.ingredient_products(rid)))
+    return db.get(rid)
 
 
 # ---------- Santé (Raccourci iOS → appli) ----------

@@ -8,6 +8,7 @@ de façon déterministe.
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Literal
 
@@ -221,3 +222,60 @@ def classify(folder: dict, recipes: list[dict]) -> list[str]:
     m = structured(CLASSIFY_SYSTEM, json.dumps(payload, ensure_ascii=False), FolderMatch, effort="medium")
     valid = {r["id"] for r in recipes}
     return [rid for rid in m.recipe_ids if rid in valid]
+
+
+# ---------- Produits scannés : valeurs de l'étiquette à la place de l'estimation ----------
+
+LABEL_KEYS = ["kcal", "protein_g", "carbs_g", "sugars_g", "fat_g", "saturated_fat_g", "fiber_g", "salt_g"]
+
+
+def _words(name: str) -> set[str]:
+    import unicodedata
+    n = unicodedata.normalize("NFKD", name.lower()).encode("ascii", "ignore").decode()
+    return {w.rstrip("s") for w in re.findall(r"[a-z]{3,}", n)}
+
+
+def _match_index(recipe_ing: dict, analysis: list[dict]) -> int | None:
+    """Ingrédient de l'analyse nutritionnelle qui correspond à un ingrédient de la recette."""
+    target = _words(recipe_ing.get("name", ""))
+    best, score = None, 0.0
+    for k, a in enumerate(analysis):
+        w = _words(a.get("ingredient", ""))
+        if target and w and (s := len(target & w) / len(target | w)) > score:
+            best, score = k, s
+    return best if score >= 0.3 else None
+
+
+def apply_products(summary: dict, recipe: dict, links: dict[int, dict]) -> dict:
+    """Recalcule le résumé en remplaçant, pour les ingrédients reliés à un produit scanné, les
+    macronutriments estimés par ceux de l'étiquette (pour le même poids). Les micronutriments,
+    absents des étiquettes, restent estimés. Sans appel à l'IA."""
+    ings = [dict(i) for i in summary["ingredients"]]
+    for i in ings:  # on repart des valeurs estimées (un produit a pu être changé ou retiré)
+        if "ai" in i:
+            i.update(i.pop("ai"))
+        i.pop("product", None)
+    recipe_ings = recipe.get("ingredients", [])
+    for idx, product in links.items():
+        if idx >= len(recipe_ings) or not (per100 := product.get("per_100g")):
+            continue
+        k = idx if len(recipe_ings) == len(ings) else _match_index(recipe_ings[idx], ings)
+        if k is None or k >= len(ings) or not ings[k].get("grams"):
+            continue
+        ing = ings[k]
+        ing["ai"] = {key: ing[key] for key in LABEL_KEYS}
+        for key in LABEL_KEYS:
+            if per100.get(key) is not None:
+                ing[key] = per100[key] * ing["grams"] / 100
+        ing["product"] = {"code": product["code"], "name": product["name"], "brand": product.get("brand", "")}
+    a = NutritionAnalysis(servings=summary["servings"], cooked_weight_g=summary["cooked_weight_g"] or 0,
+                          ingredients=[IngredientNutrition(**i) for i in ings], confidence=summary["confidence"],
+                          notes=summary["notes"], folder_ids=[])
+    new = summarize(a, recipe.get("servings"))
+    for out, src in zip(new["ingredients"], ings):  # summarize ne garde que les champs du schéma
+        for extra in ("ai", "product"):
+            if extra in src:
+                out[extra] = src[extra]
+    new["products_applied"] = sum(1 for i in ings if "product" in i)
+    new["computed_at"] = summary.get("computed_at", new["computed_at"])
+    return new
