@@ -153,6 +153,11 @@
   .cook-head { display: flex; justify-content: space-between; align-items: center; }
   .progress { height: 2px; background: var(--line); margin: 14px 0 0; }
   .progress i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+  .cook-body.in-next { animation: stepInNext .34s cubic-bezier(.2, .8, .2, 1) both; }
+  .cook-body.in-prev { animation: stepInPrev .34s cubic-bezier(.2, .8, .2, 1) both; }
+  @keyframes stepInNext { from { opacity: 0; transform: translateX(56px); } }
+  @keyframes stepInPrev { from { opacity: 0; transform: translateX(-56px); } }
+  @media (prefers-reduced-motion: reduce) { .cook-body.in-next, .cook-body.in-prev { animation: none; } }
   .cook-body { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 640px;
                margin: 0 auto; width: 100%; }
   .cook-num { font: 300 italic 64px/1 var(--serif); color: var(--accent); }
@@ -1806,7 +1811,28 @@ async function cookMode(d, ratio) {
   document.body.style.overflow = "hidden";
 
   const close = () => { clearInterval(tick); lock?.release?.(); el.remove(); document.body.style.overflow = ""; };
-  const draw = () => {
+  // Défilement entre les étapes : l'étape actuelle sort d'un côté, la nouvelle entre de l'autre
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let moving = false;
+  const goTo = (n, dir) => {
+    if (moving || n < 0 || n >= d.steps.length) return;
+    const body = el.querySelector(".cook-body");
+    const swap = () => { i = n; draw(dir); moving = false; };
+    if (still || !body?.animate) return swap();
+    moving = true;
+    body.animate([{ opacity: 1, transform: "translateX(0)" }, { opacity: 0, transform: `translateX(${dir === "next" ? -56 : 56}px)` }],
+      { duration: 150, easing: "ease-in", fill: "forwards" }).finished.then(swap, swap);
+  };
+  // Glisser du doigt vers la gauche ou la droite pour changer d'étape
+  let sx = null, sy = null;
+  el.addEventListener("touchstart", e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  el.addEventListener("touchend", e => {
+    if (sx == null) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    sx = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) goTo(dx < 0 ? i + 1 : i - 1, dx < 0 ? "next" : "prev");
+  });
+  const draw = (dir = null) => {
     clearInterval(tick); tick = null;
     const step = d.steps[i], dur = findDuration(step);
     left = dur || 0;
@@ -1821,15 +1847,15 @@ async function cookMode(d, ratio) {
     el.innerHTML = `<div class="cook-head"><span class="eyebrow">Étape ${i + 1} sur ${d.steps.length}</span>
         <button class="icon-btn" id="x" aria-label="Quitter le mode cuisine">${ICONS.close}</button></div>
       <div class="progress"><i style="width:${(i + 1) / d.steps.length * 100}%"></i></div>
-      <div class="cook-body"><div class="cook-num">${String(i + 1).padStart(2, "0")}</div>
+      <div class="cook-body${dir ? ` in-${dir}` : ""}"><div class="cook-num">${String(i + 1).padStart(2, "0")}</div>
         <div class="cook-text">${esc(step)}</div>
         ${ings.length ? `<div class="cook-ings">${ings.map(esc).join(" · ")}</div>` : ""}
         ${dur ? `<button class="timer" id="t" style="margin-top:22px">Minuteur ${fmtTime(dur)}</button>` : ""}</div>
       <div class="cook-nav"><button class="btn ghost" id="prev" ${i ? "" : 'style="visibility:hidden"'}>Précédente</button>
         <button class="btn" id="next">${i < d.steps.length - 1 ? "Étape suivante" : "Bon appétit"}</button></div>`;
     el.querySelector("#x").onclick = close;
-    el.querySelector("#prev").onclick = () => { i--; draw(); };
-    el.querySelector("#next").onclick = () => { if (i < d.steps.length - 1) { i++; draw(); } else close(); };
+    el.querySelector("#prev").onclick = () => goTo(i - 1, "prev");
+    el.querySelector("#next").onclick = () => { if (i < d.steps.length - 1) goTo(i + 1, "next"); else close(); };
     const t = el.querySelector("#t");
     if (t) t.onclick = () => {
       if (tick) { clearInterval(tick); tick = null; t.classList.remove("running", "ring"); left = dur; t.textContent = `Minuteur ${fmtTime(dur)}`; return; }
