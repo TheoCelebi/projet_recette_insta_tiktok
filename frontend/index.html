@@ -1,14 +1,13 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mon carnet</title>
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#F6F0E4" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1A1512" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#1A1512">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Carnet">
 <link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="preload" href="/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
@@ -400,19 +399,9 @@ const ICONS = {
   book: '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14c8-3 16-3 22 2v36c-6-5-14-5-22-2Z"/><path d="M54 14c-8-3-16-3-22 2v36c6-5 14-5 22-2Z"/><path d="M38 24c4-1 7-1 10 0M38 31c4-1 7-1 10 0"/></svg>',
 };
 
-/* ---------- Thème clair / sombre (suit le système, ou le choix de l'utilisateur) ---------- */
-function getTheme() { try { return localStorage.getItem("theme"); } catch { return null; } }
-function applyTheme(t) {
-  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
-}
-const isDark = () => document.documentElement.dataset.theme === "dark" ||
-  (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
-function toggleTheme() {
-  const next = isDark() ? "light" : "dark";
-  applyTheme(next); try { localStorage.setItem("theme", next); } catch {}
-  route();
-}
-applyTheme(getTheme());
+/* ---------- Thème : l'appli est toujours en mode sombre ---------- */
+document.documentElement.dataset.theme = "dark";
+try { localStorage.removeItem("theme"); } catch {}  // ancien choix clair/sombre, plus utilisé
 
 /* ---------- Hors ligne : copie locale d'abord, Mac en arrière-plan ----------
    Chaque écran s'affiche immédiatement depuis la copie gardée sur l'appareil, puis on
@@ -699,8 +688,7 @@ function renderHome(list, folders = []) {
   if (activeTag && !tags.includes(activeTag)) activeTag = "";
 
   const header = `<div class="top"><div><div class="eyebrow">${esc(today())}</div>
-      <h1>Ton carnet<br><em>de cuisine</em></h1></div>
-      <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div>
+      <h1>Ton carnet<br><em>de cuisine</em></h1></div></div>
     ${offlineBanner()}
     ${queueHtml()}
     ${importsHtml(list)}
@@ -748,7 +736,6 @@ function renderHome(list, folders = []) {
     writeQueue(readQueue().filter(x => x.url !== b.dataset.unqueue));
     renderHome(list, folders);
   });
-  document.getElementById("theme").onclick = toggleTheme;
   return JSON.stringify([list, folders, offline, readQueue(), prefs, readHealth()]);
 }
 
@@ -1767,7 +1754,6 @@ addEventListener("hashchange", route);
 // Retour sur l'appli ou retour du réseau : on revérifie tout de suite si le Mac répond
 addEventListener("online", () => offline && route());
 document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && offline && route());
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!getTheme()) route(); });
 route();
 if ("serviceWorker" in navigator) {
   // Nouvelle version installée : on recharge une fois pour l'afficher tout de suite
