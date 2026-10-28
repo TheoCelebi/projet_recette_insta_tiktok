@@ -120,7 +120,7 @@
   .stepper span { min-width: 64px; text-align: center; }
   h4 { font: 400 italic 17px var(--serif); color: var(--accent); margin: 16px 0 2px; }
   ul.ing { list-style: none; padding: 0; margin: 0 0 30px; }
-  ul.ing li { display: grid; grid-template-columns: 22px 78px 1fr; gap: 8px; align-items: baseline;
+  ul.ing li { display: grid; grid-template-columns: 22px 104px 1fr; gap: 8px; align-items: baseline;
               padding: 11px 0; border-bottom: 1px dotted var(--line); cursor: pointer; transition: opacity .2s; }
   ul.ing .box { width: 16px; height: 16px; border: 1.5px solid var(--muted); border-radius: 4px; align-self: center;
                 display: grid; place-items: center; transition: background .15s, border-color .15s; }
@@ -129,7 +129,7 @@
   ul.ing li.done .box::after { content: ""; width: 8px; height: 4px; border: solid var(--accent-ink);
                                 border-width: 0 0 2px 2px; transform: rotate(-45deg) translate(1px, -1px); }
   ul.ing li.done .name { text-decoration: line-through; }
-  ul.ing .q { font: 500 16px var(--serif); color: var(--accent); }
+  ul.ing .q { font: 500 16px var(--serif); color: var(--accent); white-space: nowrap; }
   ol.steps { list-style: none; padding: 0; margin: 0 0 30px; counter-reset: s; }
   ol.steps li { counter-increment: s; display: grid; grid-template-columns: 44px 1fr; padding: 12px 0;
                 border-bottom: 1px solid var(--line); }
@@ -564,6 +564,48 @@ const isCount = i => !i.unit || /^pi[eè]ces?$/i.test(i.unit.trim());
 const unitLabel = i => isCount(i) ? "" : i.unit;
 const scaled = (i, ratio) => i.quantity == null ? null
   : isCount(i) && Number.isInteger(i.quantity) ? Math.max(1, Math.round(i.quantity * ratio)) : i.quantity * ratio;
+// Unités abrégées pour tenir dans la colonne des quantités
+const shortUnit = u => String(u || "")
+  .replace(/cuill[eè]res?\s+à\s+soupe|c\.\s*à\s*soupe|\bc\.?\s*à\s*s\.?(?=\s|$)|\bcas\b/i, "c. à s.")
+  .replace(/cuill[eè]res?\s+à\s+café|c\.\s*à\s*café|\bc\.?\s*à\s*c\.?(?=\s|$)|\bcac\b/i, "c. à c.");
+const FRACTIONS = { "½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3 };
+// Quantité estimée écrite dans la note quand la vidéo n'en donnait pas :
+// « ~1 grosse c. à soupe », « ~2-3 c. à soupe », « environ 1 louche », « une pincée »
+const EST_UNITS = "c\\.\\s*à\\s*(?:soupe|café)|cuill[eè]res?\\s+à\\s+(?:soupe|café)|kg|g|ml|cl|l|gousses?|pincées?|filets?|louches?|tranches?|pièces?|sachets?|bottes?|poignées?|verres?|pots?";
+const NUM = "\\d+(?:[.,]\\d+)?(?:\\s*\\/\\s*\\d+)?|[½¼¾⅓⅔]";
+const EST_RE = new RegExp(`(?:~|\\benviron\\s+)\\s*(${NUM})(?:\\s*(?:-|à)\\s*(${NUM}))?\\s*((?:grosses?|petites?|bonnes?|demi-)\\s*)?(${EST_UNITS})?(?=[\\s,.;)]|$)`, "i");
+const ONE_RE = /\b(une?)\s+(pincée|filet|poignée|louche|botte|gousse|tranche|noix|noisette)s?\b/i;
+const parseNum = t => {
+  if (FRACTIONS[t] != null) return FRACTIONS[t];
+  const f = t.match(/^(\d+)\s*\/\s*(\d+)$/);
+  return f ? Number(f[1]) / Number(f[2]) : Number(t.replace(",", "."));
+};
+const cleanNote = t => t.replace(/quantité\s+non\s+précisée/gi, "")
+  .replace(/\(\s*\)/g, "").replace(/\s+([,;)])/g, "$1").replace(/([,;(])\s*[,;]+/g, "$1")
+  .replace(/^[\s,;:—–-]+|[\s,;:—–-]+$/g, "").replace(/\s{2,}/g, " ");
+// Ce qu'on affiche pour un ingrédient : quantité (colonne de gauche) et précision (à droite)
+function ingView(i, ratio = 1) {
+  const note = i.note || "";
+  if (i.quantity != null) return { qty: [fmtQty(scaled(i, ratio)), shortUnit(unitLabel(i))].filter(Boolean).join(" "), note };
+  let m = note.match(EST_RE);
+  // Sans unité reconnue, « ~3-4 c. » ou « ~2 tasses » : on ne devine pas
+  if (m && !m[4] && /^\s*[a-zà-ÿ]/i.test(note.slice(m.index + m[0].length))) m = null;
+  if (m) {
+    const unit = m[4] ? shortUnit(m[4]) : "";
+    const count = !unit || /gousse|pièce|tranche|sachet|botte|pot|verre/i.test(unit);
+    const fmt = t => { const n = parseNum(t) * ratio; return fmtQty(count && n >= 1 ? Math.round(n) : n); };
+    const qty = "~" + [m[2] ? `${fmt(m[1])}-${fmt(m[2])}` : fmt(m[1]), unit].filter(Boolean).join(" ");
+    return { qty, note: cleanNote(note.replace(m[0], m[3] ? ` ${m[3].trim()}, ` : " ")) };
+  }
+  const one = note.match(ONE_RE);
+  if (one) {
+    const n = ratio === 1 ? "1" : `~${fmtQty(Math.max(1, Math.round(ratio)))}`;
+    return { qty: `${n} ${one[2].toLowerCase()}`, note: cleanNote(note.replace(one[0], " ")) };
+  }
+  const rest = cleanNote(note);
+  return { qty: "", note: rest || note };
+}
+
 const minutes = m => m == null ? "–" : m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) : ""}` : `${m} min`;
 const total = d => (d.prep_minutes || 0) + (d.cook_minutes || 0) || null;
 const photo = r => `<div class="photo" style="${r.thumbnail ? `background-image:url('${esc(r.thumbnail)}')` : ""}">
@@ -721,8 +763,8 @@ function renderDetail(r) {
     const ingHtml = sections.map(s => `${s ? `<h4>${esc(s)}</h4>` : ""}<ul class="ing">${
       d.ingredients.map((i, idx) => ({ i, idx })).filter(({ i }) => (i.section || "") === s).map(({ i, idx }) => `
         <li data-idx="${idx}" class="${st.checked.has(idx) ? "done" : ""}"><span class="box"></span>
-          <span class="q">${esc(fmtQty(scaled(i, ratio)))} ${esc(unitLabel(i))}</span>
-          <span class="name">${esc(i.name)}${i.note ? ` <span class="meta">— ${esc(i.note)}</span>` : ""}</span></li>`).join("")}</ul>`).join("");
+          ${(v => `<span class="q">${esc(v.qty)}</span>
+          <span class="name">${esc(i.name)}${v.note ? ` <span class="meta">— ${esc(v.note)}</span>` : ""}</span>`)(ingView(i, ratio))}</li>`).join("")}</ul>`).join("");
 
     $view.innerHTML = `<div class="detail">
       <div class="hero">${photo(r)}<button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
@@ -759,7 +801,7 @@ function renderDetail(r) {
     });
     document.getElementById("copy").onclick = () => {
       const lines = d.ingredients.filter((_, i) => !st.checked.has(i)).map(i =>
-        `- ${[fmtQty(scaled(i, ratio)), unitLabel(i), i.name].filter(Boolean).join(" ")}`);
+        `- ${[ingView(i, ratio).qty, i.name].filter(Boolean).join(" ")}`);
       navigator.clipboard.writeText(`${d.title} (${st.servings} pers.)\n${lines.join("\n")}`).then(() => toast("Liste copiée"));
     };
     document.getElementById("cook").onclick = () => cookMode(d, ratio);
@@ -1287,7 +1329,7 @@ async function cookMode(d, ratio) {
       return key && (words.has(key) || words.has(key + "s") || words.has(key.replace(/s$/, "")));
     };
     const ings = d.ingredients.filter(mentioned)
-      .map(x => [fmtQty(scaled(x, ratio)), unitLabel(x), x.name].filter(Boolean).join(" "));
+      .map(x => [ingView(x, ratio).qty, x.name].filter(Boolean).join(" "));
     el.innerHTML = `<div class="cook-head"><span class="eyebrow">Étape ${i + 1} sur ${d.steps.length}</span>
         <button class="icon-btn" id="x" aria-label="Quitter le mode cuisine">${ICONS.close}</button></div>
       <div class="progress"><i style="width:${(i + 1) / d.steps.length * 100}%"></i></div>
