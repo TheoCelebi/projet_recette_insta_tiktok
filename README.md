@@ -95,7 +95,7 @@ une séance. Les étapes du Raccourci, avec la bonne adresse, sont dans l'appli 
 
 - **Liste de courses** (onglet Courses) : « Ajouter à la liste de courses » sur une recette ajoute
   ses ingrédients pour le nombre de portions choisi ; les ingrédients identiques de plusieurs
-  recettes sont regroupés et additionnés. Cochages possibles hors ligne (envoyés au retour du Mac).
+  recettes sont regroupés et additionnés. Cocher, ajouter, retirer et vider marchent hors ligne : appliqués tout de suite, envoyés au Mac dans l'ordre à son retour.
 - **Scan en magasin** : la fiche du produit scanné propose l'article de la liste qui correspond.
   L'article est coché et la recette d'origine est recalculée avec l'**étiquette** du produit
   pour cet ingrédient (macros, sucres, fibres, sel ; les micronutriments restent estimés),

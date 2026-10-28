@@ -470,7 +470,7 @@ function setOffline(v) {
   // Mac injoignable (au chargement d'un écran ou pendant un envoi) : on retente régulièrement
   if (v && !retryTimer) retryTimer = setTimeout(() => { retryTimer = null; route(); }, RETRY_MS);
   if (!v && readQueue().length) setTimeout(flushQueue, 0);  // Mac de retour : on envoie les liens gardés
-  if (!v && readOps().length) setTimeout(flushShopOps, 0);   // … et les cochages de la liste de courses
+  if (!v && readOps().length) setTimeout(flushShopOps, 0);   // … et les changements de la liste de courses
 }
 
 /* ---------- File d'attente : liens ajoutés hors ligne, envoyés au retour du Mac ---------- */
@@ -1419,15 +1419,49 @@ const SSTORE = "shopping-cache", SOPS = "shopping-ops";
 const readShop = () => { try { return JSON.parse(ls.get(SSTORE)) || []; } catch { return []; } };
 const writeShop = l => ls.set(SSTORE, JSON.stringify(l));
 const readOps = () => { try { return JSON.parse(ls.get(SOPS)) || []; } catch { return []; } };
-// Cochages faits hors ligne (dans un magasin sans réseau) : appliqués localement, envoyés au retour du Mac
-async function flushShopOps() {
-  const ops = readOps();
-  if (!ops.length || offline) return;
-  for (const op of ops) {
-    try { writeShop(await api(`/api/shopping/${op.id}`, { method: "PATCH", body: JSON.stringify({ checked: op.checked }) })); }
-    catch (e) { if (e instanceof TypeError) return; }
-    ls.set(SOPS, JSON.stringify(readOps().filter(o => o !== op && !(o.id === op.id && o.checked === op.checked))));
+// Changements faits sur la liste (cocher, ajouter, retirer, vider) : appliqués tout de suite à
+// l'écran, même sans réseau (magasin), puis envoyés au Mac dans l'ordre dès qu'il répond.
+// Opérations : { id, checked } (cochage), { kind: "add", id, name }, { kind: "del", id }, { kind: "clear", checkedOnly }
+const newShopId = () => [...crypto.getRandomValues(new Uint8Array(5))].map(b => b.toString(16).padStart(2, "0")).join("");
+function applyShopOps(list, ops) {
+  for (const o of ops) {
+    if (o.kind === "add") {
+      if (!list.some(i => i.id === o.id)) list = [...list, { id: o.id, name: o.name, quantity: null, unit: "", note: "",
+        ratio: 1, recipe_id: null, recipe_title: null, checked: false, product_code: null }];
+    } else if (o.kind === "del") list = list.filter(i => i.id !== o.id);
+    else if (o.kind === "clear") list = o.checkedOnly ? list.filter(i => !i.checked) : [];
+    else list = list.map(i => i.id === o.id ? { ...i, checked: o.checked } : i);
   }
+  return list;
+}
+function queueShop(ops) {
+  ls.set(SOPS, JSON.stringify([...readOps(), ...ops]));
+  writeShop(applyShopOps(readShop(), ops));
+  if (location.hash === "#/courses") renderCourses(readShop());
+  flushShopOps();
+}
+let shopFlushing = false;
+async function flushShopOps() {
+  if (shopFlushing || offline || !readOps().length) return;
+  shopFlushing = true;
+  try {
+    for (let op; (op = readOps()[0]);) {
+      const [path, method, body] = op.kind === "add" ? ["/api/shopping", "POST", { id: op.id, name: op.name }]
+        : op.kind === "del" ? [`/api/shopping/${op.id}`, "DELETE"]
+        : op.kind === "clear" ? [`/api/shopping?checked=${!!op.checkedOnly}`, "DELETE"]
+        : [`/api/shopping/${op.id}`, "PATCH", { checked: op.checked }];
+      try { await api(path, { method, ...(body && { body: JSON.stringify(body) }) }); }
+      catch (e) {
+        if (e instanceof TypeError) { setOffline(true); return; }  // Mac injoignable : on garde la suite pour plus tard
+        // Refusé par le serveur (article déjà retiré ailleurs…) : on passe à la suite
+      }
+      ls.set(SOPS, JSON.stringify(readOps().slice(1)));
+    }
+    const fresh = await api("/api/shopping");
+    writeShop(applyShopOps(fresh, readOps()));
+    if (location.hash === "#/courses") renderCourses(readShop());
+  } catch { /* nouvelle tentative au retour du Mac */ }
+  finally { shopFlushing = false; }
 }
 const normName = n => n.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/s\b/g, "").trim();
 // Regroupe les articles identiques (même nom, même unité) venant de plusieurs recettes
@@ -1460,9 +1494,8 @@ async function coursesPage() {
   const fresh = await getJSON("/api/shopping");
   if (token !== navToken) return;
   if (fresh) {
-    // Les cochages encore en attente l'emportent sur la copie du serveur
-    const ops = readOps();
-    writeShop(fresh.map(i => { const o = [...ops].reverse().find(x => x.id === i.id); return o ? { ...i, checked: o.checked } : i; }));
+    // Les changements encore en attente l'emportent sur la copie du serveur
+    writeShop(applyShopOps(fresh, readOps()));
   }
   if (JSON.stringify([readShop(), offline]) !== state) renderCourses(readShop());
 }
@@ -1523,34 +1556,23 @@ function renderCourses(list) {
   const ids = li => li.dataset.ids.split(",");
   $view.querySelectorAll("ul.shop li .box").forEach(b => b.onclick = () => {
     const li = b.closest("li"), checked = !li.classList.contains("done");
-    // Coché tout de suite à l'écran, même sans réseau ; envoyé au Mac dès que possible
-    writeShop(readShop().map(i => ids(li).includes(i.id) ? { ...i, checked } : i));
-    ls.set(SOPS, JSON.stringify([...readOps(), ...ids(li).map(id => ({ id, checked }))]));
-    renderCourses(readShop());
-    flushShopOps();
+    queueShop(ids(li).map(id => ({ id, checked })));
   });
-  $view.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
-    try { for (const id of ids(b.closest("li"))) writeShop(await api(`/api/shopping/${id}`, { method: "DELETE" })); renderCourses(readShop()); }
-    catch (e) { toast(e instanceof TypeError ? "Mac injoignable : réessaie plus tard." : e.message); }
-  });
-  document.getElementById("shop-add").onsubmit = async e => {
+  $view.querySelectorAll("[data-del]").forEach(b => b.onclick = () =>
+    queueShop(ids(b.closest("li")).map(id => ({ kind: "del", id }))));
+  document.getElementById("shop-add").onsubmit = e => {
     e.preventDefault();
-    const name = e.target.name.value.trim();
+    const name = e.target.name.value.trim().slice(0, 120);
     if (!name) return;
-    try { writeShop(await api("/api/shopping", { method: "POST", body: JSON.stringify({ name }) })); renderCourses(readShop()); }
-    catch (err) { toast(err instanceof TypeError ? "Mac injoignable : réessaie plus tard." : err.message); }
+    queueShop([{ kind: "add", id: newShopId(), name }]);
+    document.querySelector("#shop-add input")?.focus();  // enchaîner les ajouts
   };
   const cd = document.getElementById("clear-done");
-  if (cd) cd.onclick = async () => {
-    try { writeShop(await api("/api/shopping?checked=true", { method: "DELETE" })); renderCourses(readShop()); }
-    catch (e) { toast(e instanceof TypeError ? "Mac injoignable : réessaie plus tard." : e.message); }
-  };
+  if (cd) cd.onclick = () => queueShop([{ kind: "clear", checkedOnly: true }]);
   if (missing) setTimeout(() => fetchPrices(all.map(priceLine)));
   const ca = document.getElementById("clear-all");
-  if (ca) ca.onclick = async () => {
-    if (!confirm("Vider toute la liste de courses ?")) return;
-    try { writeShop(await api("/api/shopping?checked=false", { method: "DELETE" })); ls.set(SOPS, "[]"); renderCourses(readShop()); }
-    catch (e) { toast(e instanceof TypeError ? "Mac injoignable : réessaie plus tard." : e.message); }
+  if (ca) ca.onclick = () => {
+    if (confirm("Vider toute la liste de courses ?")) queueShop([{ kind: "clear", checkedOnly: false }]);
   };
   return JSON.stringify([list, offline]);
 }

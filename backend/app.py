@@ -387,6 +387,7 @@ class FromRecipe(BaseModel):
 
 class ShoppingIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
+    id: str | None = Field(default=None, pattern=r"^[0-9a-f]{10}$")  # choisi par l'appli quand l'ajout est fait hors ligne
 
 
 class ShoppingPatch(BaseModel):
@@ -422,7 +423,7 @@ def shopping_from_recipe(req: FromRecipe) -> dict:
 
 @app.post("/api/shopping")
 def shopping_add(req: ShoppingIn) -> list[dict]:
-    db.add_shopping_items([{"name": req.name.strip()}])
+    db.add_shopping_items([{"name": req.name.strip(), "id": req.id}])
     return db.list_shopping()
 
 

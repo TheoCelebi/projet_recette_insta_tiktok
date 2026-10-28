@@ -293,9 +293,10 @@ def get_shopping_item(sid: str) -> dict | None:
 def add_shopping_items(items: list[dict]) -> None:
     now = time.time()
     with _conn() as c:
-        c.executemany("""INSERT INTO shopping_items (id, name, quantity, unit, note, ratio, recipe_id, recipe_title,
-                         ingredient_index, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                      [(uuid.uuid4().hex[:10], i["name"], i.get("quantity"), i.get("unit") or "", i.get("note") or "",
+        # OR IGNORE : un ajout fait hors ligne peut être renvoyé deux fois (réseau coupé pendant l'envoi)
+        c.executemany("""INSERT OR IGNORE INTO shopping_items (id, name, quantity, unit, note, ratio, recipe_id,
+                         recipe_title, ingredient_index, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                      [(i.get("id") or uuid.uuid4().hex[:10], i["name"], i.get("quantity"), i.get("unit") or "", i.get("note") or "",
                         i.get("ratio", 1), i.get("recipe_id"), i.get("recipe_title"), i.get("ingredient_index"),
                         now + k / 1000) for k, i in enumerate(items)])
 
