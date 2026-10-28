@@ -81,7 +81,8 @@ def parse(payload: dict) -> tuple[str, dict]:
         day = dt.date.today().isoformat()  # sans date : aujourd'hui (heure du Mac)
     ws = workouts(payload.get("workouts"))
     # « Minutes d'exercice » (anneau vert d'Activité) : quand le Raccourci n'a pas accès aux entraînements
-    exercise = round(num(payload.get("exercise_minutes")) or 0) or None
+    exercise_raw = next((payload[k] for k in ("exercise_minutes", "exercise_minute", "exercise") if k in payload), None)
+    exercise = round(num(exercise_raw) or 0) or None
     summary = {
         "active_kcal": round(num(payload.get("active_kcal")) or 0) or None,
         "steps": round(num(payload.get("steps")) or 0) or None,
