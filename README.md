@@ -101,6 +101,9 @@ une séance. Les étapes du Raccourci, avec la bonne adresse, sont dans l'appli 
   pour cet ingrédient (macros, sucres, fibres, sel ; les micronutriments restent estimés),
   sans appel à l'IA (`nutrition.apply_products`). Le lien est gardé : un recalcul ultérieur de la
   recette réapplique l'étiquette.
+- **Prix estimé** : chaque article affiche un prix moyen en supermarché (paquet entier, marque
+  distributeur) et la liste un total. Estimé par Sonnet (`prices.py`), gardé 2 mois en base
+  (table `prices`) : seuls les articles jamais vus déclenchent un appel à l'IA.
 
 ## Lancer
 

@@ -33,7 +33,7 @@ def _load_env(path: str) -> None:
 
 _load_env(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from . import db, health, nutrition, products  # noqa: E402
+from . import db, health, nutrition, prices, products  # noqa: E402
 from .extractor import Recipe, extract_recipe  # noqa: E402
 from .media import fetch  # noqa: E402
 
@@ -444,6 +444,30 @@ def shopping_delete(sid: str) -> list[dict]:
 def shopping_clear(checked: bool = True) -> list[dict]:
     db.delete_shopping(checked_only=checked)
     return db.list_shopping()
+
+
+class PriceLines(BaseModel):
+    lines: list[str] = Field(max_length=200)
+
+
+price_lock = threading.Lock()
+
+
+@app.post("/api/shopping/prices")
+def shopping_prices(req: PriceLines) -> dict:
+    """Prix estimé de chaque article affiché ; seuls les articles jamais vus passent par Claude."""
+    lines = list(dict.fromkeys(line.strip() for line in req.lines if line.strip()))
+    with price_lock:  # deux écrans ouverts : un seul calcul à la fois, le second lit le cache
+        known = db.get_prices(lines)
+        if missing := [line for line in lines if line not in known]:
+            try:
+                new = prices.estimate(missing)
+            except Exception as e:  # noqa: BLE001
+                traceback.print_exc()
+                raise HTTPException(502, _friendly(e))
+            db.save_prices(new)
+            known |= new
+    return known
 
 
 @app.post("/api/shopping/{sid}/product")

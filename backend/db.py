@@ -76,6 +76,12 @@ def init() -> None:
             product_code TEXT NOT NULL,
             PRIMARY KEY (recipe_id, ingredient_index)
         )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS prices (
+            line TEXT PRIMARY KEY,             -- article tel qu'affiché : « 1,6 kg poulet »
+            eur REAL NOT NULL,                 -- prix estimé de ce qu'on achète
+            pack TEXT NOT NULL DEFAULT '',     -- conditionnement acheté
+            created_at REAL NOT NULL
+        )""")
         c.execute("""CREATE TABLE IF NOT EXISTS recipe_folders (
             recipe_id TEXT NOT NULL,
             folder_id TEXT NOT NULL,
@@ -334,3 +340,23 @@ def ingredient_products(rid: str) -> dict[int, dict]:
         if p := get_product(r["product_code"]):
             out[r["ingredient_index"]] = p
     return out
+
+
+# ---------- Prix estimés (liste de courses) ----------
+
+PRICE_MAX_AGE = 60 * 86400  # les prix changent : on réestime au bout de 2 mois
+
+
+def get_prices(lines: list[str]) -> dict[str, dict]:
+    if not lines:
+        return {}
+    with _conn() as c:
+        rows = c.execute(f"SELECT * FROM prices WHERE created_at > ? AND line IN ({','.join('?' * len(lines))})",
+                         (time.time() - PRICE_MAX_AGE, *lines)).fetchall()
+    return {r["line"]: {"eur": r["eur"], "pack": r["pack"]} for r in rows}
+
+
+def save_prices(prices: dict[str, dict]) -> None:
+    with _conn() as c:
+        c.executemany("INSERT OR REPLACE INTO prices (line, eur, pack, created_at) VALUES (?, ?, ?, ?)",
+                      [(line, p["eur"], p["pack"], time.time()) for line, p in prices.items()])

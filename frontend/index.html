@@ -284,6 +284,11 @@
   ul.shop li.done .nm { text-decoration: line-through; }
   ul.shop .nm { font-size: 16px; } ul.shop .nm b { font: 500 16px var(--serif); color: var(--accent); margin-right: 6px; }
   ul.shop .src { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  ul.shop .price { color: var(--muted); }
+  .shop-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+                background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 0 0 16px; }
+  .shop-total b { font: 500 26px var(--serif); color: var(--accent); white-space: nowrap; }
+  .shop-total .meta { font-size: 12px; }
   ul.shop .prodtag { display: inline-block; font-size: 12px; color: var(--accent); margin-top: 3px; }
   .shop-match { background: var(--card); border: 1px solid var(--accent); border-radius: 14px; padding: 14px 16px; margin: 16px 0; }
   .shop-match h3 { font: 400 20px var(--serif); margin: 0 0 4px; }
@@ -1462,13 +1467,39 @@ async function coursesPage() {
   if (JSON.stringify([readShop(), offline]) !== state) renderCourses(readShop());
 }
 
+// Prix estimés par l'IA (moyenne supermarché), gardés ici pour les voir hors ligne
+const PRSTORE = "price-cache";
+const readPrices = () => { try { return JSON.parse(ls.get(PRSTORE)) || {}; } catch { return {}; } };
+const priceLine = g => [g.qty, g.name].filter(Boolean).join(" ");
+const euro = n => n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: n >= 100 ? 0 : 2 });
+let pricing = null;  // lignes en cours d'estimation
+const priceTried = new Set();  // une seule demande par ligne et par ouverture de l'appli (pas de boucle)
+async function fetchPrices(lines) {
+  const known = readPrices(), missing = lines.filter(l => !known[l] && !priceTried.has(l));
+  if (!missing.length || offline || pricing) return;
+  pricing = missing;
+  missing.forEach(l => priceTried.add(l));
+  if (location.hash === "#/courses") renderCourses(readShop());  // affiche « Estimation en cours… »
+  try {
+    const got = await api("/api/shopping/prices", { method: "POST", body: JSON.stringify({ lines: missing }) });
+    ls.set(PRSTORE, JSON.stringify({ ...readPrices(), ...got }));
+  } catch { /* pas grave : on réessaiera au prochain affichage */ }
+  pricing = null;
+  if (location.hash === "#/courses") renderCourses(readShop());
+}
+
 function renderCourses(list) {
   const todo = groupShop(list.filter(i => !i.checked)), done = groupShop(list.filter(i => i.checked));
+  const known = readPrices(), all = [...todo, ...done];
+  const priceOf = g => known[priceLine(g)];
+  const sum = gs => gs.reduce((t, g) => t + (priceOf(g)?.eur || 0), 0);
+  const missing = all.filter(g => !priceOf(g)).length;
   const prods = readProducts();
   const row = g => `<li class="${g.checked ? "done" : ""}" data-ids="${esc(g.items.map(i => i.id).join(","))}">
       <span class="box" role="checkbox" aria-checked="${g.checked}" aria-label="${esc(g.name)}"></span>
       <div><div class="nm">${g.qty ? `<b>${esc(g.qty)}</b>` : ""}${esc(g.name)}</div>
         ${g.sources.length ? `<div class="src">${esc(g.sources.join(" · "))}</div>` : ""}
+        ${priceOf(g) ? `<div class="src price">≈ ${euro(priceOf(g).eur)}${priceOf(g).pack ? ` · ${esc(priceOf(g).pack)}` : ""}</div>` : ""}
         ${g.product ? `<a class="prodtag" href="#/p/${esc(g.product)}">✓ ${esc(prods.find(p => p.code === g.product)?.name || "produit scanné")}</a>` : ""}</div>
       <button class="del-row" data-del aria-label="Retirer ${esc(g.name)}">${ICONS.close}</button></li>`;
   $view.innerHTML = `<div class="eyebrow">Courses</div><h1 class="page-title">Liste de <em>courses</em></h1>
@@ -1481,6 +1512,11 @@ function renderCourses(list) {
     ${todo.length ? `<ul class="shop">${todo.map(row).join("")}</ul>` : list.length ? `<p class="meta">Tout est dans le panier.</p>` : ""}
     ${done.length ? `<div class="rule eyebrow">Dans le panier · ${done.length}</div><ul class="shop">${done.map(row).join("")}</ul>
       <button class="btn ghost" id="clear-done">Retirer les articles cochés</button>` : ""}
+    ${all.length ? `<div class="shop-total"><div><div class="eyebrow">Total estimé</div>
+        <div class="meta">${pricing ? "Estimation en cours…"
+          : done.length && todo.length ? `Reste à acheter ≈ ${euro(sum(todo))}` : "Prix moyens en supermarché"}${missing && !pricing ? " · incomplet" : ""}</div></div>
+        <b>${sum(all) ? `≈ ${euro(sum(all))}` : "…"}</b></div>
+      <p class="meta" style="margin:-8px 0 16px;font-size:12px">Estimation par l'IA : prix moyen d'un paquet entier en supermarché, marque distributeur.</p>` : ""}
     ${list.length ? `<button class="btn ghost" id="clear-all" style="margin-top:10px;color:var(--danger)">Vider toute la liste</button>` : ""}
     ${!list.length ? `<div class="empty fade">${ICONS.cart}<h2>Ta liste est vide</h2>
       <p>Ouvre une recette et touche « Ajouter à la liste de courses » : ses ingrédients arrivent ici, regroupés et additionnés.</p></div>` : ""}`;
@@ -1509,6 +1545,7 @@ function renderCourses(list) {
     try { writeShop(await api("/api/shopping?checked=true", { method: "DELETE" })); renderCourses(readShop()); }
     catch (e) { toast(e instanceof TypeError ? "Mac injoignable : réessaie plus tard." : e.message); }
   };
+  if (missing) setTimeout(() => fetchPrices(all.map(priceLine)));
   const ca = document.getElementById("clear-all");
   if (ca) ca.onclick = async () => {
     if (!confirm("Vider toute la liste de courses ?")) return;
