@@ -1257,16 +1257,18 @@ function todayCard(list) {
       <div class="meta">Tes séances et calories dépensées, pour te proposer les bonnes recettes après le sport. →</div></a>`;
   }
   const ws = t.workouts || [];
+  // Sport du jour : séances détaillées, sinon minutes d'exercice (10 min et plus = une vraie séance)
+  const trained = ws.length > 0 || (t.exercise_minutes || 0) >= 10;
   const main = ws.length
     ? ws.map(w => [w.label, w.minutes && `${w.minutes} min`].filter(Boolean).join(" · ")).join(" + ")
-    : "Pas de séance enregistrée";
+    : trained ? `${t.exercise_minutes} min d'exercice` : "Pas de séance enregistrée";
   const stats = [
     t.active_kcal && [nf(t.active_kcal), "kcal actives"], t.steps && [nf(t.steps), "pas"],
     t.workout_minutes && [nf(t.workout_minutes), "min de sport"], t.weight_kg && [String(t.weight_kg).replace(".", ","), "kg"],
   ].filter(Boolean);
   // Après une séance : recettes « Idéal après l'effort », sinon les plus protéinées
   const done = list.filter(r => r.status === "done" && pp(r));
-  const recover = ws.length ? [...done].sort((a, b) =>
+  const recover = trained ? [...done].sort((a, b) =>
     (b.nutrition.badges.includes("Idéal après l'effort") - a.nutrition.badges.includes("Idéal après l'effort"))
     || pp(b).protein_g - pp(a).protein_g).slice(0, 3) : [];
   return `<div class="today"><a href="#/sante" style="text-decoration:none;color:inherit">
@@ -1299,7 +1301,7 @@ function renderHealth(h) {
           <span><b>${last.active_kcal != null ? nf(last.active_kcal) : "–"}</b>kcal actives</span>
           <span><b>${last.steps != null ? nf(last.steps) : "–"}</b>pas</span>
           <span><b>${last.weight_kg != null ? String(last.weight_kg).replace(".", ",") : "–"}</b>kg</span>
-          <span><b>${(last.workouts || []).length}</b>séance${(last.workouts || []).length > 1 ? "s" : ""}</span></div>
+          <span><b>${last.workout_minutes != null ? nf(last.workout_minutes) : "–"}</b>min de sport</span></div>
         ${(last.workouts || []).length ? `<ul style="margin:12px 0 0;padding-left:18px">${last.workouts.map(w =>
           `<li>${esc(w.label)}${w.minutes ? ` · ${w.minutes} min` : ""}${w.kcal ? ` · ${w.kcal} kcal` : ""}</li>`).join("")}</ul>` : ""}
         <details style="margin-top:12px"><summary class="meta" style="cursor:pointer">Ce que le Raccourci a envoyé</summary>
@@ -1315,12 +1317,12 @@ function renderHealth(h) {
       <li>Même chose avec le Type <b>Nombre de pas</b> (Somme) → variable <span class="code">pas</span>.</li>
       <li><b>Rechercher des échantillons de santé</b> : Type <b>Poids</b>, trié par <b>Date de début</b>, <b>le plus récent d'abord</b>,
         limite <b>1</b> → variable <span class="code">poids</span>.</li>
-      <li><b>Rechercher des échantillons de santé</b> : Type <b>Entraînements</b>, Date de début <b>est aujourd'hui</b> → variable
-        <span class="code">seances</span>.</li>
+      <li><b>Rechercher des échantillons de santé</b> : Type <b>Minutes d'exercice</b> (ou « Exercise Minutes »), Date de début
+        <b>est aujourd'hui</b>, Unité <b>min</b>. Puis <b>Calculer des statistiques</b> → <b>Somme</b> → variable <span class="code">exercice</span>.</li>
       <li><b>Obtenir le contenu de l'URL</b> : adresse <span class="code">${esc(url)}</span>
         <button class="link-btn" id="copy-url">Copier l'adresse</button>, Méthode <b>POST</b>, Corps de la requête <b>JSON</b>,
         avec 4 champs : <span class="code">active_kcal</span> = kcal, <span class="code">steps</span> = pas,
-        <span class="code">weight_kg</span> = poids, <span class="code">workouts</span> (type Texte) = seances.</li>
+        <span class="code">weight_kg</span> = poids, <span class="code">exercise_minutes</span> = exercice.</li>
       <li>Lance-le une fois avec ▶︎ et accepte l'accès à Santé. Les données apparaissent en haut de cette page.</li>
     </ol>
     <div class="sec-title"><h3>Le lancer tout seul</h3></div>

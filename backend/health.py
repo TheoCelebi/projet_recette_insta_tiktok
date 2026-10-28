@@ -80,11 +80,14 @@ def parse(payload: dict) -> tuple[str, dict]:
     except ValueError:
         day = dt.date.today().isoformat()  # sans date : aujourd'hui (heure du Mac)
     ws = workouts(payload.get("workouts"))
+    # « Minutes d'exercice » (anneau vert d'Activité) : quand le Raccourci n'a pas accès aux entraînements
+    exercise = round(num(payload.get("exercise_minutes")) or 0) or None
     summary = {
         "active_kcal": round(num(payload.get("active_kcal")) or 0) or None,
         "steps": round(num(payload.get("steps")) or 0) or None,
         "weight_kg": (round(w, 1) if (w := num(payload.get("weight_kg"))) else None),
         "workouts": ws,
-        "workout_minutes": sum(w["minutes"] or 0 for w in ws) or None,
+        "exercise_minutes": exercise,
+        "workout_minutes": sum(w["minutes"] or 0 for w in ws) or exercise,
     }
     return day, summary
