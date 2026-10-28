@@ -654,13 +654,14 @@ function roundNice(q, unit) {
   if (/c\.?\s*à|cuill|tasses?|cups?/.test(u)) return roundTo(q, 0.25);
   return roundTo(q, 0.5);  // pièces, gousses, tranches… : à la demi-unité près
 }
-// Moins d'1 kg ou d'1 L : affiché en g ou en mL (0,85 kg → 850 g)
-function toSmallUnit(q, unit) {
+// Unité adaptée à la quantité : 0,85 kg → 850 g, 1 500 g → 1,5 kg (pareil pour L et mL)
+const UNIT_SCALE = [[/^(kg|kilos?|kilogrammes?)$/, "g", 1000, "down"], [/^(l|litres?)$/, "mL", 1000, "down"],
+                    [/^(g|grammes?)$/, "kg", 0.001, "up"], [/^(ml|millilitres?)$/, "L", 0.001, "up"]];
+function convertUnit(q, unit) {
   const u = String(unit || "").trim().toLowerCase();
-  if (q == null || q >= 1) return [q, unit];
-  if (/^(kg|kilos?|kilogrammes?)$/.test(u)) return [q * 1000, "g"];
-  if (/^(l|litres?)$/.test(u)) return [q * 1000, "mL"];
-  return [q, unit];
+  const rule = q != null && UNIT_SCALE.find(([re]) => re.test(u));
+  if (rule && (rule[3] === "down" ? q < 1 : q >= 1000)) return [rule[1], rule[2]];
+  return [unit, 1];
 }
 const scaled = (i, ratio) => i.quantity == null ? null
   : isCount(i) && Number.isInteger(i.quantity) ? Math.max(1, Math.round(i.quantity * ratio))
@@ -688,8 +689,9 @@ const cleanNote = t => t.replace(/quantité\s+non\s+précisée/gi, "")
 function ingView(i, ratio = 1) {
   const note = i.note || "";
   if (i.quantity != null) {
-    let [q, unit] = toSmallUnit(scaled(i, ratio), unitLabel(i));
-    if (unit !== unitLabel(i) && ratio !== 1) q = roundNice(i.quantity * ratio * 1000, unit);  // arrondi en g/mL, pas en kg/L
+    let q = scaled(i, ratio);
+    const [unit, factor] = convertUnit(q, unitLabel(i));
+    if (factor !== 1) q = ratio === 1 ? q * factor : roundNice(i.quantity * ratio * factor, unit);  // arrondi dans la nouvelle unité
     return { qty: [fmtQty(q), shortUnit(unit)].filter(Boolean).join(" "), note };
   }
   let m = note.match(EST_RE);
@@ -1437,8 +1439,8 @@ function groupShop(items) {
     const nums = g.items.filter(i => i.quantity != null);
     const exact = nums.length === g.items.length;
     const total = nums.reduce((t, i) => t + i.quantity * i.ratio, 0);
-    const [t, u] = toSmallUnit(total, g.unit);
-    const qty = exact && nums.length ? [fmtQty(isCount(g.items[0]) ? Math.round(t) : roundNice(t, u)), u].filter(Boolean).join(" ")
+    const [u, factor] = convertUnit(roundNice(total, g.unit), g.unit);
+    const qty = exact && nums.length ? [fmtQty(isCount(g.items[0]) ? Math.round(total) : roundNice(total * factor, u)), u].filter(Boolean).join(" ")
       : g.items.length === 1 ? ingView(g.items[0], g.items[0].ratio).qty : "";
     const sources = [...new Set(g.items.map(i => i.recipe_title).filter(Boolean))];
     const product = g.items.map(i => i.product_code).find(Boolean);
