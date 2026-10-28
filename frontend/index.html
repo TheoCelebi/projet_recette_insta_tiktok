@@ -642,8 +642,21 @@ function fmtQty(q) {
 // Les ingrédients comptés à la pièce (œufs, gousses...) restent des nombres entiers
 const isCount = i => !i.unit || /^pi[eè]ces?$/i.test(i.unit.trim());
 const unitLabel = i => isCount(i) ? "" : i.unit;
+// Quantité recalculée (autre nombre de personnes) arrondie à une valeur qu'on peut mesurer :
+// 63⅔ g → 65 g, 433 g → 430 g, 1,27 c. à s. → 1¼ c. à s., 0,83 kg → 0,85 kg
+const roundTo = (q, step) => Math.max(step, Math.round(q / step) * step);
+function roundNice(q, unit) {
+  if (q == null) return q;
+  const u = String(unit || "").trim().toLowerCase();
+  if (/^(g|grammes?|ml|millilitres?)$/.test(u)) return roundTo(q, q < 10 ? 1 : q < 100 ? 5 : q < 1000 ? 10 : 50);
+  if (/^(kg|kilos?|kilogrammes?|l|litres?)$/.test(u)) return roundTo(q, q < 1 ? 0.05 : 0.1);
+  if (/^(cl|centilitres?)$/.test(u)) return roundTo(q, 1);
+  if (/c\.?\s*à|cuill|tasses?|cups?/.test(u)) return roundTo(q, 0.25);
+  return roundTo(q, 0.5);  // pièces, gousses, tranches… : à la demi-unité près
+}
 const scaled = (i, ratio) => i.quantity == null ? null
-  : isCount(i) && Number.isInteger(i.quantity) ? Math.max(1, Math.round(i.quantity * ratio)) : i.quantity * ratio;
+  : isCount(i) && Number.isInteger(i.quantity) ? Math.max(1, Math.round(i.quantity * ratio))
+  : ratio === 1 ? i.quantity : roundNice(i.quantity * ratio, i.unit);
 // Unités abrégées pour tenir dans la colonne des quantités
 const shortUnit = u => String(u || "")
   .replace(/cuill[eè]res?\s+à\s+soupe|c\.\s*à\s*soupe|\bc\.?\s*à\s*s\.?(?=\s|$)|\bcas\b/i, "c. à s.")
@@ -673,7 +686,7 @@ function ingView(i, ratio = 1) {
   if (m) {
     const unit = m[4] ? shortUnit(m[4]) : "";
     const count = !unit || /gousse|pièce|tranche|sachet|botte|pot|verre/i.test(unit);
-    const fmt = t => { const n = parseNum(t) * ratio; return fmtQty(count && n >= 1 ? Math.round(n) : n); };
+    const fmt = t => { const n = parseNum(t) * ratio; return fmtQty(count && n >= 1 ? Math.round(n) : ratio === 1 ? n : roundNice(n, unit)); };
     const qty = "~" + [m[2] ? `${fmt(m[1])}-${fmt(m[2])}` : fmt(m[1]), unit].filter(Boolean).join(" ");
     return { qty, note: cleanNote(note.replace(m[0], m[3] ? ` ${m[3].trim()}, ` : " ")) };
   }
@@ -1412,7 +1425,7 @@ function groupShop(items) {
     const nums = g.items.filter(i => i.quantity != null);
     const exact = nums.length === g.items.length;
     const total = nums.reduce((t, i) => t + i.quantity * i.ratio, 0);
-    const qty = exact && nums.length ? [fmtQty(isCount(g.items[0]) ? Math.round(total) : total), g.unit].filter(Boolean).join(" ")
+    const qty = exact && nums.length ? [fmtQty(isCount(g.items[0]) ? Math.round(total) : roundNice(total, g.unit)), g.unit].filter(Boolean).join(" ")
       : g.items.length === 1 ? ingView(g.items[0], g.items[0].ratio).qty : "";
     const sources = [...new Set(g.items.map(i => i.recipe_title).filter(Boolean))];
     const product = g.items.map(i => i.product_code).find(Boolean);
