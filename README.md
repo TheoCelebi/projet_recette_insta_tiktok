@@ -72,6 +72,15 @@ Open Food Facts (`backend/products.py`) et garde la fiche en cache 30 jours : va
 Les produits ajoutés à « Mes produits » apparaissent sur l'accueil. Saisie manuelle du code
 possible si la caméra n'est pas disponible.
 
+## App Santé (via un Raccourci)
+
+Une web app ne peut pas lire l'app Santé (réservé aux applis natives). Un Raccourci iOS lit
+les calories actives, les pas, le poids et les séances du jour, et les envoie en JSON à
+`POST /api/health` (`backend/health.py`, lecture tolérante des unités et formats). L'accueil
+affiche alors une carte « Aujourd'hui » et propose des recettes « Idéal après l'effort » après
+une séance. Les étapes du Raccourci, avec la bonne adresse, sont dans l'appli : carte
+« Relie l'app Santé » sur l'accueil (page `#/sante`).
+
 ## Lancer
 
 ```bash

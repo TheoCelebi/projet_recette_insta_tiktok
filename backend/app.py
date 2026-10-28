@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import base64
 import os
+import datetime as dt
+import json
 import re
 import time
 import traceback
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -29,7 +32,7 @@ def _load_env(path: str) -> None:
 
 _load_env(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from . import db, nutrition, products  # noqa: E402
+from . import db, health, nutrition, products  # noqa: E402
 from .extractor import extract_recipe  # noqa: E402
 from .media import fetch  # noqa: E402
 
@@ -295,6 +298,33 @@ def save_product(code: str, req: SavedIn) -> dict:
         raise HTTPException(404, "Produit introuvable.")
     db.set_product_saved(code, req.saved)
     return db.get_product(code)
+
+
+# ---------- Santé (Raccourci iOS → appli) ----------
+
+@app.post("/api/health")
+async def receive_health(request: Request) -> dict:
+    """Reçoit le résumé du jour envoyé par le Raccourci (JSON, ou formulaire en secours)."""
+    body = await request.body()
+    try:
+        payload = json.loads(body) if body else {}
+    except ValueError:
+        # Secours : formulaire « clé=valeur » (option « Formulaire » du Raccourci)
+        form = urllib.parse.parse_qs(body.decode("utf-8", "replace"))
+        if not form:
+            raise HTTPException(400, "Le Raccourci doit envoyer un JSON (corps de la requête : JSON).") from None
+        payload = {k: v[-1] for k, v in form.items()}
+    if not isinstance(payload, dict):
+        raise HTTPException(400, "Le Raccourci doit envoyer un dictionnaire (JSON).")
+    day, summary = health.parse(payload)
+    db.save_health_day(day, summary, payload)
+    return {"date": day, **summary}
+
+
+@app.get("/api/health/today")
+def health_today() -> dict:
+    today = dt.date.today().isoformat()
+    return {"today": db.get_health_day(today), "latest": db.latest_health_day()}
 
 
 # ---------- Partage, front ----------

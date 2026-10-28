@@ -50,6 +50,12 @@ def init() -> None:
             fetched_at REAL NOT NULL,
             saved_at REAL
         )""")
+        c.execute("""CREATE TABLE IF NOT EXISTS health_days (
+            date TEXT PRIMARY KEY,             -- AAAA-MM-JJ
+            data TEXT NOT NULL,                -- résumé du jour (JSON)
+            raw TEXT NOT NULL,                 -- dernier envoi brut du Raccourci (pour vérifier)
+            updated_at REAL NOT NULL
+        )""")
         c.execute("""CREATE TABLE IF NOT EXISTS recipe_folders (
             recipe_id TEXT NOT NULL,
             folder_id TEXT NOT NULL,
@@ -206,3 +212,25 @@ def list_saved_products() -> list[dict]:
     with _conn() as c:
         rows = c.execute("SELECT * FROM products WHERE saved = 1 ORDER BY saved_at DESC").fetchall()
     return [_product(r) for r in rows]
+
+
+# ---------- Santé (envoyé par le Raccourci iOS) ----------
+
+def save_health_day(day: str, data: dict, raw: dict) -> None:
+    with _conn() as c:
+        c.execute("""INSERT INTO health_days (date, data, raw, updated_at) VALUES (?, ?, ?, ?)
+                     ON CONFLICT(date) DO UPDATE SET data = excluded.data, raw = excluded.raw,
+                     updated_at = excluded.updated_at""",
+                  (day, json.dumps(data, ensure_ascii=False), json.dumps(raw, ensure_ascii=False), time.time()))
+
+
+def get_health_day(day: str) -> dict | None:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM health_days WHERE date = ?", (day,)).fetchone()
+    return {"date": r["date"], **json.loads(r["data"]), "raw": json.loads(r["raw"]), "updated_at": r["updated_at"]} if r else None
+
+
+def latest_health_day() -> dict | None:
+    with _conn() as c:
+        r = c.execute("SELECT date FROM health_days ORDER BY updated_at DESC LIMIT 1").fetchone()
+    return get_health_day(r["date"]) if r else None

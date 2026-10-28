@@ -242,6 +242,21 @@
   .sheet .actions { margin-top: 18px; }
   .err-text { color: var(--danger); font-size: 13px; min-height: 18px; }
 
+  /* Santé */
+  .today { display: block; text-decoration: none; background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+           padding: 14px 16px; margin-bottom: 22px; }
+  .today-main { font: 400 21px/1.2 var(--serif); margin: 4px 0 10px; }
+  .today-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--soft); }
+  .today-stats b { display: block; font: 400 20px var(--serif); color: var(--ink); }
+  .today.setup { border-style: dashed; }
+  .today .recover { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dotted var(--line); }
+  .steps-howto { padding-left: 20px; margin: 0 0 20px; }
+  .steps-howto li { margin: 0 0 12px; line-height: 1.5; }
+  .steps-howto b { font-weight: 600; }
+  .code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: var(--wash); border-radius: 6px; padding: 2px 6px;
+          word-break: break-all; }
+  pre.raw { background: var(--wash); border-radius: 10px; padding: 12px; font-size: 12px; overflow: auto; white-space: pre-wrap; }
+
   /* Barre d'onglets */
   .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; display: grid; grid-template-columns: repeat(5, 1fr);
             padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line);
@@ -349,6 +364,7 @@ const ICONS = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>',
   notebook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6Z"/><path d="M6 3v18M4 7h2M4 12h2M4 17h2M10 8h6M10 12h4"/></svg>',
   basket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-2 10a2 2 0 0 1-2 1.6H7A2 2 0 0 1 5 19Z"/><path d="M8 9l3-5M16 9l-3-5"/></svg>',
+  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/><path d="M5 12h3l1.5-2.5L12 14l1.5-2H19"/></svg>',
   barcode: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6v12M7 6v12M11 6v12M14 6v12M17 6v12M20 6v12"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
@@ -530,6 +546,8 @@ function filtersSheet() {
   $("#fapply").onclick = () => { prefs = draft; savePrefs(); el.remove(); route(); };
   refresh();
 }
+const HSTORE = "health-cache";
+const readHealth = () => { try { return JSON.parse(ls.get(HSTORE)) || {}; } catch { return {}; } };
 const PSTORE = "products-cache";
 const readProducts = () => { try { return JSON.parse(ls.get(PSTORE)) || []; } catch { return []; } };
 const writeProducts = p => ls.set(PSTORE, JSON.stringify(p));
@@ -618,12 +636,13 @@ async function home() {
   const cached = readStore(), cachedF = readFolders();
   let state = null;
   if (cached.length || cachedF.length) state = renderHome(cached, cachedF);
-  const [fresh, freshF] = await Promise.all([getJSON("/api/recipes"), getJSON("/api/folders")]);
+  const [fresh, freshF, freshH] = await Promise.all([getJSON("/api/recipes"), getJSON("/api/folders"), getJSON("/api/health/today")]);
   if (token !== navToken) return;  // l'utilisateur a changé d'écran entre-temps
   if (fresh) writeStore(fresh);
   if (freshF) writeFolders(freshF);
+  if (freshH) ls.set(HSTORE, JSON.stringify(freshH));
   const list = fresh || cached, folders = freshF || cachedF;
-  if (JSON.stringify([list, folders, offline, readQueue(), prefs]) !== state) renderHome(list, folders);
+  if (JSON.stringify([list, folders, offline, readQueue(), prefs, readHealth()]) !== state) renderHome(list, folders);
   const busy = list.some(r => r.status === "pending" || r.nutrition_status === "pending") || folders.some(f => f.status === "sorting");
   if (!offline && busy) timer = setTimeout(route, 4000);
 }
@@ -646,7 +665,8 @@ function renderHome(list, folders = []) {
       <h1>Ton carnet<br><em>de cuisine</em></h1></div>
       <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div>
     ${offlineBanner()}
-    ${queueHtml()}`;
+    ${queueHtml()}
+    ${todayCard(list)}`;
 
   if (!list.length) {
     $view.innerHTML = header + (readQueue().length ? "" : `<div class="empty fade">${ICONS.book}
@@ -687,7 +707,7 @@ function renderHome(list, folders = []) {
     renderHome(list, folders);
   });
   document.getElementById("theme").onclick = toggleTheme;
-  return JSON.stringify([list, folders, offline, readQueue(), prefs]);
+  return JSON.stringify([list, folders, offline, readQueue(), prefs, readHealth()]);
 }
 
 function label(r) {
@@ -1039,6 +1059,101 @@ function rangeSheet(r) {
     el.remove();
     folderSheet(null, nf => save([...ids, nf.id]));
   };
+}
+
+/* ---------- App Santé (données envoyées par un Raccourci iOS) ---------- */
+const nf = n => Math.round(n).toLocaleString("fr-FR");
+const isoToday = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const timeOf = ts => new Date(ts * 1000).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+function todayCard(list) {
+  const h = readHealth();
+  const t = h.today && h.today.date === isoToday() ? h.today : null;
+  if (!t) {
+    if (h.latest) return "";  // déjà relié, pas encore de données aujourd'hui (le Raccourci passe le soir)
+    return `<a class="today setup" href="#/sante"><div class="eyebrow">App Santé</div>
+      <div class="today-main">Relie l'app Santé</div>
+      <div class="meta">Tes séances et calories dépensées, pour te proposer les bonnes recettes après le sport. →</div></a>`;
+  }
+  const ws = t.workouts || [];
+  const main = ws.length
+    ? ws.map(w => [w.label, w.minutes && `${w.minutes} min`].filter(Boolean).join(" · ")).join(" + ")
+    : "Pas de séance enregistrée";
+  const stats = [
+    t.active_kcal && [nf(t.active_kcal), "kcal actives"], t.steps && [nf(t.steps), "pas"],
+    t.workout_minutes && [nf(t.workout_minutes), "min de sport"], t.weight_kg && [String(t.weight_kg).replace(".", ","), "kg"],
+  ].filter(Boolean);
+  // Après une séance : recettes « Idéal après l'effort », sinon les plus protéinées
+  const done = list.filter(r => r.status === "done" && pp(r));
+  const recover = ws.length ? [...done].sort((a, b) =>
+    (b.nutrition.badges.includes("Idéal après l'effort") - a.nutrition.badges.includes("Idéal après l'effort"))
+    || pp(b).protein_g - pp(a).protein_g).slice(0, 3) : [];
+  return `<div class="today"><a href="#/sante" style="text-decoration:none;color:inherit">
+      <div class="eyebrow">Aujourd'hui · synchro ${timeOf(t.updated_at)}</div>
+      <div class="today-main">${esc(main)}</div>
+      <div class="today-stats">${stats.map(([v, l]) => `<span><b>${esc(v)}</b>${l}</span>`).join("")}</div></a>
+    ${recover.length ? `<div class="recover"><span class="meta" style="width:100%">Pour récupérer :</span>
+      ${recover.map(r => `<a class="chip" href="#/r/${r.id}" style="text-decoration:none">${esc(r.data.title.slice(0, 32))}
+        · ${Math.round(pp(r).protein_g)} g prot.</a>`).join("")}</div>` : ""}</div>`;
+}
+
+async function healthPage() {
+  const token = ++navToken;
+  scrollTo(0, 0);
+  let state = renderHealth(readHealth());
+  const fresh = await getJSON("/api/health/today");
+  if (token !== navToken) return;
+  if (fresh) ls.set(HSTORE, JSON.stringify(fresh));
+  if (JSON.stringify([readHealth(), offline]) !== state) renderHealth(readHealth());
+}
+function renderHealth(h) {
+  const last = h.latest;
+  const url = `${location.origin}/api/health`;
+  $view.innerHTML = `<div class="top"><button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
+    <div class="eyebrow">Connexion</div><h1 class="page-title">App <em>Santé</em></h1>
+    ${offlineBanner()}
+    ${last ? `<div class="today"><div class="eyebrow">Dernières données reçues</div>
+        <div class="today-main">${new Date(last.date + "T12:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} · ${timeOf(last.updated_at)}</div>
+        <div class="today-stats">
+          <span><b>${last.active_kcal != null ? nf(last.active_kcal) : "–"}</b>kcal actives</span>
+          <span><b>${last.steps != null ? nf(last.steps) : "–"}</b>pas</span>
+          <span><b>${last.weight_kg != null ? String(last.weight_kg).replace(".", ",") : "–"}</b>kg</span>
+          <span><b>${(last.workouts || []).length}</b>séance${(last.workouts || []).length > 1 ? "s" : ""}</span></div>
+        ${(last.workouts || []).length ? `<ul style="margin:12px 0 0;padding-left:18px">${last.workouts.map(w =>
+          `<li>${esc(w.label)}${w.minutes ? ` · ${w.minutes} min` : ""}${w.kcal ? ` · ${w.kcal} kcal` : ""}</li>`).join("")}</ul>` : ""}
+        <details style="margin-top:12px"><summary class="meta" style="cursor:pointer">Ce que le Raccourci a envoyé</summary>
+          <pre class="raw">${esc(JSON.stringify(last.raw, null, 2))}</pre></details></div>`
+      : `<p class="summary">Rien reçu pour l'instant. Crée le Raccourci ci-dessous : il lira l'app Santé et enverra
+         chaque jour tes séances et calories dépensées à ton carnet.</p>`}
+    <div class="sec-title"><h3>Créer le Raccourci</h3></div>
+    <p class="meta" style="margin:0 0 14px">Dans l'app <b>Raccourcis</b>, touche <b>+</b>, nomme-le « Santé → carnet », puis ajoute ces actions dans l'ordre
+      (les noms peuvent varier légèrement selon ta version d'iOS) :</p>
+    <ol class="steps-howto">
+      <li><b>Rechercher des échantillons de santé</b> : Type <b>Énergie active</b>, Date de début <b>est aujourd'hui</b>.
+        Puis <b>Calculer des statistiques</b> → <b>Somme</b>. Puis <b>Définir la variable</b> → nomme-la <span class="code">kcal</span>.</li>
+      <li>Même chose avec le Type <b>Nombre de pas</b> (Somme) → variable <span class="code">pas</span>.</li>
+      <li><b>Rechercher des échantillons de santé</b> : Type <b>Poids</b>, trié par <b>Date de début</b>, <b>le plus récent d'abord</b>,
+        limite <b>1</b> → variable <span class="code">poids</span>.</li>
+      <li><b>Rechercher des échantillons de santé</b> : Type <b>Entraînements</b>, Date de début <b>est aujourd'hui</b> → variable
+        <span class="code">seances</span>.</li>
+      <li><b>Obtenir le contenu de l'URL</b> : adresse <span class="code">${esc(url)}</span>
+        <button class="link-btn" id="copy-url">Copier l'adresse</button>, Méthode <b>POST</b>, Corps de la requête <b>JSON</b>,
+        avec 4 champs : <span class="code">active_kcal</span> = kcal, <span class="code">steps</span> = pas,
+        <span class="code">weight_kg</span> = poids, <span class="code">workouts</span> (type Texte) = seances.</li>
+      <li>Lance-le une fois avec ▶︎ et accepte l'accès à Santé. Les données apparaissent en haut de cette page.</li>
+    </ol>
+    <div class="sec-title"><h3>Le lancer tout seul</h3></div>
+    <ol class="steps-howto">
+      <li>Raccourcis → onglet <b>Automatisation</b> → <b>+</b> → <b>Heure de la journée</b> : 21:00, tous les jours,
+        <b>Exécuter immédiatement</b> → choisis « Santé → carnet ».</li>
+      <li>Avec une Apple Watch, ajoute aussi l'automatisation <b>Apple Watch → Exercice → À la fin</b> pour un envoi juste après chaque séance.</li>
+    </ol>
+    <p class="fine">Les données Santé restent chez toi : elles vont de ton iPhone à ton Mac par ton réseau privé Tailscale.
+      Si le Mac est éteint au moment de l'envoi, rien n'est perdu côté Santé : relance le Raccourci à la main (▶︎) une fois le Mac allumé, le même jour.</p>`;
+  bindBack("#/");
+  document.getElementById("copy-url").onclick = () =>
+    navigator.clipboard.writeText(url).then(() => toast("Adresse copiée"), () => toast(url));
+  return JSON.stringify([h, offline]);
 }
 
 /* ---------- Onglet Dossiers ---------- */
@@ -1438,7 +1553,7 @@ function route() {
   const h = location.hash, m = h.match(/^#\/r\/(\w+)/), fm = h.match(/^#\/d\/(\w+)/), pm = h.match(/^#\/p\/(\d+)/);
   activeTab();
   (m ? detail(m[1]) : fm ? folderPage(fm[1]) : pm ? productPage(pm[1]) : h === "#/scan" ? scanPage()
-    : h === "#/dossiers" ? foldersPage() : h === "#/produits" ? productsPage() : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
+    : h === "#/dossiers" ? foldersPage() : h === "#/produits" ? productsPage() : h === "#/sante" ? healthPage() : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
 }
 // Raccourci de partage ouvert alors que le Mac est injoignable : le service worker a servi
 // l'appli à la place de /share ; on garde le lien pour l'envoyer plus tard.
