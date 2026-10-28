@@ -863,6 +863,7 @@ function renderDetail(r) {
         <div><span class="eyebrow">Niveau</span><b>${esc(d.difficulty || "–")}</b></div>
       </div>
       ${macroStrip(r, st)}
+      ${offline ? "" : `<button class="btn ghost cook-cta" id="to-shop" style="margin-bottom:10px">${ICONS.cart} Ajouter à la liste de courses</button>`}
       <button class="btn cook-cta" id="cook">${ICONS.pan} Commencer à cuisiner</button>
       <div class="sec-title"><h3>Ingrédients</h3>
         <div class="stepper"><button data-s="-1" aria-label="Moins de personnes">−</button>
@@ -873,7 +874,6 @@ function renderDetail(r) {
       ${nutritionHtml(r, st)}
       ${d.tips?.length ? `<div class="note"><h3>Le mot du chef</h3><ul>${d.tips.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>` : ""}
       <div class="actions">
-        ${offline ? "" : `<button class="btn" id="to-shop">${ICONS.cart.replace("<svg", '<svg width="18" height="18" style="vertical-align:-4px;margin-right:6px"')}Ajouter à la liste de courses</button>`}
         <button class="btn ghost" id="copy">Copier la liste</button>
         ${offline ? "" : `<button class="btn ghost" id="del">Supprimer</button>`}
       </div></div>`;
