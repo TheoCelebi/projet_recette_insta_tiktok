@@ -264,6 +264,10 @@
           word-break: break-all; }
   pre.raw { background: var(--wash); border-radius: 10px; padding: 12px; font-size: 12px; overflow: auto; white-space: pre-wrap; }
 
+  .src-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 14px 8px 10px;
+              border-radius: 99px; background: var(--wash); color: var(--ink); text-decoration: none; font-size: 14px; }
+  .src-link svg { width: 18px; height: 18px; color: var(--accent); }
+
   /* Liste de courses */
   .shop-add { display: flex; gap: 6px; padding: 5px 5px 5px 16px; border: 1px solid var(--line); border-radius: 99px;
               background: var(--card); margin: 16px 0 18px; }
@@ -415,6 +419,7 @@ const ICONS = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>',
   notebook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6Z"/><path d="M6 3v18M4 7h2M4 12h2M4 17h2M10 8h6M10 12h4"/></svg>',
   basket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-2 10a2 2 0 0 1-2 1.6H7A2 2 0 0 1 5 19Z"/><path d="M8 9l3-5M16 9l-3-5"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>',
   cart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2"/><circle cx="10" cy="20.5" r="1"/><circle cx="17" cy="20.5" r="1"/></svg>',
   pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="M13.5 6.5l4 4"/></svg>',
   heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/><path d="M5 12h3l1.5-2.5L12 14l1.5-2H19"/></svg>',
@@ -681,6 +686,10 @@ function ingView(i, ratio = 1) {
   return { qty: "", note: rest || note };
 }
 
+// Lien vers la vidéo d'origine, sans les paramètres de pistage (?_r=…&_t=…, ?q=…)
+const PLATFORMS = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" };
+const sourceUrl = u => { try { const x = new URL(u); x.search = ""; x.hash = ""; return x.toString(); } catch { return u; } };
+
 const minutes = m => m == null ? "–" : m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) : ""}` : `${m} min`;
 const total = d => (d.prep_minutes || 0) + (d.cook_minutes || 0) || null;
 const photo = r => `<div class="photo" style="${r.thumbnail ? `background-image:url('${esc(r.thumbnail)}')` : ""}">
@@ -862,7 +871,9 @@ function renderDetail(r) {
       <div class="eyebrow">${(d.tags || []).map(esc).join(" · ")}</div>
       <h2>${esc(d.title)}</h2>
       <p class="summary">${esc(d.summary)}</p>
-      <div class="meta">Une recette de <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.author ? "@" + r.author : "la vidéo originale")}</a></div>
+      <div class="meta">Une recette de <a href="${esc(sourceUrl(r.url))}" target="_blank" rel="noopener">${esc(r.author ? "@" + r.author : "la vidéo originale")}</a></div>
+      <a class="src-link" href="${esc(sourceUrl(r.url))}" target="_blank" rel="noopener">${ICONS.play}
+        <span>Voir la vidéo originale${PLATFORMS[r.platform] ? ` sur ${PLATFORMS[r.platform]}` : ""}</span></a>
       ${folderChips(r)}
       <div class="facts">
         <div><span class="eyebrow">Préparation</span><b>${minutes(d.prep_minutes)}</b></div>
