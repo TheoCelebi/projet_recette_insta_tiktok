@@ -257,6 +257,29 @@
           word-break: break-all; }
   pre.raw { background: var(--wash); border-radius: 10px; padding: 12px; font-size: 12px; overflow: auto; white-space: pre-wrap; }
 
+  /* Éditeur de recette */
+  .hero .edit-btn { left: auto; right: 16px; }
+  .editor h2 { font: 400 30px/1.1 var(--serif); margin: 4px 0 18px; }
+  .editor .photo-edit { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .editor .photo-edit .photo { width: 110px; height: 110px; flex: none; }
+  .row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .field select { width: 100%; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+                  border-radius: 12px; padding: 12px 10px; font: 16px var(--sans); }
+  .ing-edit { border-bottom: 1px dotted var(--line); padding: 10px 0; display: grid; gap: 6px;
+              grid-template-columns: 64px 76px minmax(0, 1fr) 32px; align-items: center; }
+  .ing-edit input, .step-edit textarea { width: 100%; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+              border-radius: 10px; padding: 9px 10px; font: 15px var(--sans); outline: none; }
+  .ing-edit input:focus, .step-edit textarea:focus { border-color: var(--accent); }
+  .ing-edit .note-in { grid-column: 1 / 4; font-size: 14px; }
+  .del-row { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); color: var(--muted); display: grid; place-items: center; }
+  .del-row svg { width: 14px; height: 14px; }
+  .step-edit { display: grid; grid-template-columns: 28px minmax(0, 1fr) 32px; gap: 8px; align-items: start; padding: 8px 0; }
+  .step-edit .n { font: 300 italic 20px/38px var(--serif); color: var(--accent); }
+  .add-row { color: var(--accent); font-size: 14px; padding: 10px 0; }
+  .editor-bar { position: sticky; bottom: calc(76px + env(safe-area-inset-bottom)); display: flex; gap: 8px; padding: 12px 0;
+                background: var(--paper); border-top: 1px solid var(--line); margin-top: 20px; }
+  .editor-bar .btn { flex: 1; }
+
   /* Barre d'onglets */
   .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; display: grid; grid-template-columns: repeat(5, 1fr);
             padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line);
@@ -364,6 +387,7 @@ const ICONS = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg>',
   notebook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6Z"/><path d="M6 3v18M4 7h2M4 12h2M4 17h2M10 8h6M10 12h4"/></svg>',
   basket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18l-2 10a2 2 0 0 1-2 1.6H7A2 2 0 0 1 5 19Z"/><path d="M8 9l3-5M16 9l-3-5"/></svg>',
+  pencil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="M13.5 6.5l4 4"/></svg>',
   heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/><path d="M5 12h3l1.5-2.5L12 14l1.5-2H19"/></svg>',
   barcode: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6v12M7 6v12M11 6v12M14 6v12M17 6v12M20 6v12"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg>',
@@ -467,6 +491,19 @@ function queueHtml() {
       <div class="qtext"><b>${esc(shortUrl(x.url))}</b>
         <span class="meta">${offline ? "Sera importé dès que le Mac répond" : "Envoi au Mac…"} · gardé ${since(x.added)}</span></div>
       <button class="icon-btn" data-unqueue="${esc(x.url)}" aria-label="Retirer ce lien">${ICONS.close}</button></div>`).join("")}</div>`;
+}
+
+/* ---------- Imports en cours sur le Mac (file traitée une par une) ---------- */
+function importsHtml(list) {
+  const items = list.filter(isImporting)
+    .sort((a, b) => (a.status === "pending" ? 0 : a.queue_pos || 99) - (b.status === "pending" ? 0 : b.queue_pos || 99));
+  if (!items.length) return "";
+  return `<div class="rule eyebrow">Import en cours · ${items.length}</div><div class="queue">${items.map(r => `
+    <a class="qitem" href="#/r/${r.id}" style="text-decoration:none;color:inherit">
+      <div class="qicon">${r.status === "pending" ? '<div class="spinner" style="width:18px;height:18px"></div>' : ICONS.clock}</div>
+      <div class="qtext"><b>${esc(shortUrl(r.url))}</b><span class="meta">${esc(importStatus(r))}</span></div>
+      ${r.status === "queued" && !offline ? `<button class="icon-btn" data-cancel="${r.id}" aria-label="Annuler cet import">${ICONS.close}</button>` : ""}
+    </a>`).join("")}</div>`;
 }
 
 /* ---------- Tri et filtres par macros (mémorisés sur l'appareil) ---------- */
@@ -627,7 +664,7 @@ function ingView(i, ratio = 1) {
 const minutes = m => m == null ? "–" : m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? " " + (m % 60) : ""}` : `${m} min`;
 const total = d => (d.prep_minutes || 0) + (d.cook_minutes || 0) || null;
 const photo = r => `<div class="photo" style="${r.thumbnail ? `background-image:url('${esc(r.thumbnail)}')` : ""}">
-  ${r.thumbnail ? "" : r.status === "pending" ? '<div class="spinner"></div>' : ICONS.bowl}</div>`;
+  ${r.thumbnail ? "" : isImporting(r) ? '<div class="spinner"></div>' : ICONS.bowl}</div>`;
 const today = () => new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 
 /* ---------- Accueil ---------- */
@@ -643,7 +680,7 @@ async function home() {
   if (freshH) ls.set(HSTORE, JSON.stringify(freshH));
   const list = fresh || cached, folders = freshF || cachedF;
   if (JSON.stringify([list, folders, offline, readQueue(), prefs, readHealth()]) !== state) renderHome(list, folders);
-  const busy = list.some(r => r.status === "pending" || r.nutrition_status === "pending") || folders.some(f => f.status === "sorting");
+  const busy = list.some(r => isImporting(r) || r.nutrition_status === "pending") || folders.some(f => f.status === "sorting");
   if (!offline && busy) timer = setTimeout(route, 4000);
 }
 
@@ -666,6 +703,7 @@ function renderHome(list, folders = []) {
       <button class="icon-btn" id="theme" aria-label="Changer de thème">${isDark() ? ICONS.sun : ICONS.moon}</button></div>
     ${offlineBanner()}
     ${queueHtml()}
+    ${importsHtml(list)}
     ${todayCard(list)}`;
 
   if (!list.length) {
@@ -674,7 +712,7 @@ function renderHome(list, folders = []) {
       <p>Touche ⊕ en bas de l'écran et colle le lien d'une vidéo de recette : on la regarde pour toi et on y écrit
         la recette, ingrédients et étapes compris.</p></div>`);
   } else {
-    const byTag = list.filter(r => !activeTag || (r.data?.tags || []).includes(activeTag));
+    const byTag = list.filter(r => !isImporting(r) && (!activeTag || (r.data?.tags || []).includes(activeTag)));
     const shown = applyPrefs(byTag);
     const plain = prefs.sort === "recent" && !filtersCount();  // vue par défaut : la dernière recette en grand
     const [first, ...rest] = plain ? shown : [null, ...shown];
@@ -702,6 +740,10 @@ function renderHome(list, folders = []) {
     on("reset-filters", () => { prefs = { ...DEFAULT_PREFS }; savePrefs(); renderHome(list, folders); });
   }
 
+  $view.querySelectorAll("[data-cancel]").forEach(b => b.onclick = async e => {
+    e.preventDefault();
+    try { await api(`/api/recipes/${b.dataset.cancel}`, { method: "DELETE" }); route(); } catch (err) { toast(err.message); }
+  });
   $view.querySelectorAll("[data-unqueue]").forEach(b => b.onclick = () => {
     writeQueue(readQueue().filter(x => x.url !== b.dataset.unqueue));
     renderHome(list, folders);
@@ -710,8 +752,13 @@ function renderHome(list, folders = []) {
   return JSON.stringify([list, folders, offline, readQueue(), prefs, readHealth()]);
 }
 
+const isImporting = r => r.status === "queued" || r.status === "pending";
+const STAGES = { video: "Téléchargement et écoute de la vidéo…", writing: "Écriture de la recette…" };
+const importStatus = r => r.status === "queued"
+  ? (r.queue_pos ? `${r.queue_pos === 1 ? "Prochaine" : `${r.queue_pos}e`} dans la file d'import` : "Dans la file d'import")
+  : STAGES[r.stage] || "Import en cours…";
 function label(r) {
-  if (r.status === "pending") return { title: "En cours d'écriture…", meta: "On regarde la vidéo" };
+  if (isImporting(r)) return { title: "Import en cours", meta: importStatus(r) };
   if (r.status === "error") return { title: "Import impossible", meta: "Touche pour réessayer" };
   const d = r.data, n = r.nutrition?.per_portion;
   const meta = n ? [minutes(total(d)), `${Math.round(n.kcal)} kcal`, `${Math.round(n.protein_g)} g prot.`,
@@ -747,18 +794,21 @@ async function detail(id) {
   const r = fresh || cached;
   if (!r) throw new Error("Cette recette n'est pas disponible hors ligne.");
   if (JSON.stringify([r, readFolders(), offline]) !== state) renderDetail(r);
-  const busy = r.status === "pending" || r.nutrition_status === "pending";
+  const busy = isImporting(r) || r.nutrition_status === "pending";
   if (!offline && busy) timer = setTimeout(route, 4000);
 }
 
 function renderDetail(r) {
   const id = r.id;
   const back = `<button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button>`;
-  if (r.status === "pending") {
+  if (isImporting(r)) {
+    const queued = r.status === "queued";
     $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><div class="spinner"></div>
-      <h2>On regarde la vidéo pour toi…</h2>
-      <p class="meta">Lecture du texte à l'écran, écoute de l'audio,<br>puis écriture de la recette. 30 s à 2 min.</p></div>`;
-    bindBack(); return JSON.stringify([r, readFolders(), offline]);
+      <h2>${queued ? "En attente dans la file" : "On regarde la vidéo pour toi…"}</h2>
+      <p class="meta">${esc(importStatus(r))}<br>${queued ? "Les vidéos sont traitées une par une, dans l'ordre d'ajout."
+        : "Lecture du texte à l'écran, écoute de l'audio, puis écriture de la recette. 30 s à 2 min."}</p>
+      ${queued && !offline ? `<button class="btn ghost" id="del">Annuler l'import</button>` : ""}</div>`;
+    bindBack(recipeBack); bindDelete(id, true); return JSON.stringify([r, readFolders(), offline]);
   }
   if (r.status === "error") {
     $view.innerHTML = `<div class="top">${back}</div><div class="center fade"><h2>Import impossible</h2>
@@ -787,7 +837,8 @@ function renderDetail(r) {
           <span class="name">${esc(i.name)}${v.note ? ` <span class="meta">— ${esc(v.note)}</span>` : ""}</span>`)(ingView(i, ratio))}</li>`).join("")}</ul>`).join("");
 
     $view.innerHTML = `<div class="detail">
-      <div class="hero">${photo(r)}<button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
+      <div class="hero">${photo(r)}<button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button>
+        ${offline ? "" : `<a class="icon-btn edit-btn" href="#/e/${id}" aria-label="Modifier la recette">${ICONS.pencil}</a>`}</div>
       <div class="eyebrow">${(d.tags || []).map(esc).join(" · ")}</div>
       <h2>${esc(d.title)}</h2>
       <p class="summary">${esc(d.summary)}</p>
@@ -841,10 +892,10 @@ function renderDetail(r) {
 }
 
 function bindBack(target = "#/") { const b = document.getElementById("back"); if (b) b.onclick = () => go(target); }
-function bindDelete(id) {
+function bindDelete(id, cancel = false) {
   const b = document.getElementById("del");
   if (b) b.onclick = async () => {
-    if (!confirm("Retirer cette recette de ton carnet ?")) return;
+    if (!confirm(cancel ? "Annuler cet import ?" : "Retirer cette recette de ton carnet ?")) return;
     await api(`/api/recipes/${id}`, { method: "DELETE" }); go("#/");
   };
 }
@@ -1061,6 +1112,136 @@ function rangeSheet(r) {
   };
 }
 
+/* ---------- Modifier une recette ---------- */
+async function editPage(id) {
+  ++navToken;
+  scrollTo(0, 0);
+  let r = readStore().find(x => x.id === id);
+  try { r = (await getJSON(`/api/recipes/${id}`)) || r; } catch {}
+  if (!r || r.status !== "done") { go(`#/r/${id}`); return; }
+  if (offline) { toast("Mac injoignable : la modification n'est pas possible hors ligne."); go(`#/r/${id}`); return; }
+  renderEditor(r);
+}
+
+// Réduit la photo sur le téléphone avant l'envoi (une photo d'iPhone pèse plusieurs Mo)
+async function shrinkImage(file, max = 1400) {
+  let img;
+  try { img = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch { img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = URL.createObjectURL(file); }); }
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  const c = Object.assign(document.createElement("canvas"), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return new Promise(ok => c.toBlob(ok, "image/jpeg", 0.85));
+}
+
+function renderEditor(r) {
+  const d = JSON.parse(JSON.stringify(r.data));
+  const ingRow = (i = {}) => `<div class="ing-edit">
+      <input class="qty-in" inputmode="decimal" placeholder="Qté" aria-label="Quantité" value="${i.quantity != null ? esc(String(i.quantity).replace(".", ",")) : ""}">
+      <input class="unit-in" placeholder="Unité" aria-label="Unité" value="${esc(i.unit || "")}">
+      <input class="name-in" placeholder="Ingrédient" aria-label="Ingrédient" value="${esc(i.name || "")}" data-section="${esc(i.section || "")}">
+      <button type="button" class="del-row" aria-label="Retirer l'ingrédient">${ICONS.close}</button>
+      <input class="note-in" placeholder="Précision (haché, ~1 c. à soupe…)" aria-label="Précision" value="${esc(i.note || "")}"></div>`;
+  const stepRow = (t = "", n = 1) => `<div class="step-edit"><span class="n">${String(n).padStart(2, "0")}</span>
+      <textarea rows="2" aria-label="Étape ${n}">${esc(t)}</textarea>
+      <button type="button" class="del-row" aria-label="Retirer l'étape">${ICONS.close}</button></div>`;
+  $view.innerHTML = `<div class="editor fade">
+    <div class="top"><button class="icon-btn" id="back" aria-label="Retour">${ICONS.back}</button></div>
+    <div class="eyebrow">Modifier</div><h2>${esc(d.title)}</h2>
+    <div class="photo-edit">${photo(r)}<div><button type="button" class="btn ghost" id="pick">Changer la photo</button>
+      <input type="file" accept="image/*" id="file" hidden><div class="meta" id="photo-status" style="margin-top:6px"></div></div></div>
+    <label class="field"><span>Titre</span><input id="e-title" value="${esc(d.title)}"></label>
+    <label class="field"><span>Résumé</span><textarea id="e-summary" rows="2">${esc(d.summary)}</textarea></label>
+    <div class="row3">
+      <label class="field"><span>Portions</span><input id="e-serv" inputmode="numeric" value="${d.servings ?? ""}"></label>
+      <label class="field"><span>Prépa (min)</span><input id="e-prep" inputmode="numeric" value="${d.prep_minutes ?? ""}"></label>
+      <label class="field"><span>Cuisson (min)</span><input id="e-cook" inputmode="numeric" value="${d.cook_minutes ?? ""}"></label>
+    </div>
+    <label class="field"><span>Niveau</span><select id="e-diff">${["facile", "moyen", "difficile"].map(v =>
+      `<option ${d.difficulty === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+    <div class="sec-title"><h3>Ingrédients</h3></div>
+    <div id="ings">${d.ingredients.map(i => ingRow(i)).join("")}</div>
+    <button type="button" class="add-row" id="add-ing">+ Ajouter un ingrédient</button>
+    <div class="sec-title" style="margin-top:18px"><h3>Préparation</h3></div>
+    <div id="steps">${d.steps.map((t, k) => stepRow(t, k + 1)).join("")}</div>
+    <button type="button" class="add-row" id="add-step">+ Ajouter une étape</button>
+    <label class="field" style="margin-top:18px"><span>Astuces (une par ligne)</span><textarea id="e-tips" rows="3">${esc((d.tips || []).join("\n"))}</textarea></label>
+    <label class="field"><span>Tags (séparés par des virgules)</span><input id="e-tags" value="${esc((d.tags || []).join(", "))}"></label>
+    <div class="err-text" id="e-err" role="alert"></div>
+    <div class="editor-bar"><button type="button" class="btn ghost" id="e-cancel">Annuler</button>
+      <button type="button" class="btn" id="e-save">Enregistrer</button></div></div>`;
+  const $ = q => document.querySelector(q);
+  let dirty = false;
+  const form = $view.querySelector(".editor");  // recréé à chaque ouverture : pas d'écouteurs qui s'accumulent
+  form.addEventListener("input", () => { dirty = true; }, { once: true });
+  const renumber = () => document.querySelectorAll("#steps .step-edit").forEach((el, k) => {
+    el.querySelector(".n").textContent = String(k + 1).padStart(2, "0");
+  });
+  form.addEventListener("click", e => {
+    const del = e.target.closest(".del-row");
+    if (del) { del.parentElement.remove(); dirty = true; renumber(); }
+  });
+  $("#add-ing").onclick = () => { $("#ings").insertAdjacentHTML("beforeend", ingRow()); $("#ings .ing-edit:last-child .qty-in").focus(); };
+  $("#add-step").onclick = () => {
+    $("#steps").insertAdjacentHTML("beforeend", stepRow("", $("#steps").children.length + 1));
+    $("#steps .step-edit:last-child textarea").focus();
+  };
+  const leave = () => go(`#/r/${r.id}`);
+  bindBack();
+  $("#back").onclick = $("#e-cancel").onclick = () => { if (!dirty || confirm("Abandonner tes modifications ?")) leave(); };
+
+  // Photo : choisie dans la galerie ou prise avec l'appareil, réduite puis envoyée tout de suite
+  $("#pick").onclick = () => $("#file").click();
+  $("#file").onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const status = $("#photo-status");
+    status.textContent = "Envoi de la photo…";
+    try {
+      const blob = await shrinkImage(file);
+      const res = await fetch(`/api/recipes/${r.id}/image`, { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: blob });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `Erreur ${res.status}`);
+      const upd = await res.json();
+      cacheRecipe(upd);
+      r.thumbnail = upd.thumbnail;
+      document.querySelector(".photo-edit .photo").outerHTML = photo(upd);
+      status.textContent = "Photo mise à jour";
+    } catch (err) { status.textContent = err instanceof TypeError ? "Mac injoignable : réessaie plus tard." : err.message; }
+  };
+
+  $("#e-save").onclick = async () => {
+    const int = v => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
+    const qty = v => { v = v.trim(); if (!v) return null; const n = parseNum(v); return Number.isFinite(n) ? n : NaN; };
+    const ingredients = [...document.querySelectorAll("#ings .ing-edit")].map(el => ({
+      quantity: qty(el.querySelector(".qty-in").value), unit: el.querySelector(".unit-in").value.trim(),
+      name: el.querySelector(".name-in").value.trim(), note: el.querySelector(".note-in").value.trim(),
+      section: el.querySelector(".name-in").dataset.section || "",
+    })).filter(i => i.name);
+    const err = $("#e-err");
+    if (ingredients.some(i => Number.isNaN(i.quantity))) { err.textContent = "Une quantité n'est pas un nombre (ex. 200, 1,5 ou ½)."; return; }
+    const title = $("#e-title").value.trim();
+    if (!title) { err.textContent = "Donne un titre à ta recette."; $("#e-title").focus(); return; }
+    const data = {
+      ...d, title, summary: $("#e-summary").value.trim(), servings: int($("#e-serv").value),
+      prep_minutes: int($("#e-prep").value), cook_minutes: int($("#e-cook").value), difficulty: $("#e-diff").value,
+      ingredients, steps: [...document.querySelectorAll("#steps textarea")].map(t => t.value.trim()).filter(Boolean),
+      tips: $("#e-tips").value.split("\n").map(t => t.trim()).filter(Boolean),
+      tags: $("#e-tags").value.split(",").map(t => t.trim()).filter(Boolean),
+    };
+    $("#e-save").disabled = true;
+    try {
+      const upd = await api(`/api/recipes/${r.id}`, { method: "PUT", body: JSON.stringify({ data }) });
+      cacheRecipe(upd);
+      if (detailState[r.id]) detailState[r.id].servings = upd.data.servings || 1;
+      toast(upd.nutrition_status === "pending" ? "Recette enregistrée · valeurs nutritionnelles recalculées" : "Recette enregistrée");
+      leave();
+    } catch (ex) {
+      err.textContent = ex instanceof TypeError ? "Mac injoignable : réessaie dans un instant." : ex.message;
+      $("#e-save").disabled = false;
+    }
+  };
+}
+
 /* ---------- App Santé (données envoyées par un Raccourci iOS) ---------- */
 const nf = n => Math.round(n).toLocaleString("fr-FR");
 const isoToday = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
@@ -1204,37 +1385,53 @@ function renderProducts(list) {
 }
 
 /* ---------- Ajouter une recette (bouton central de la barre) ---------- */
-async function submitLink(text) {
-  // Accepte aussi le texte copié depuis TikTok (« Regarde ça ! https://… ») : on y cherche le lien
-  if (!/https?:\/\/\S+/.test(text)) { toast(text ? "Aucun lien trouvé dans ce texte." : "Colle d'abord un lien."); return false; }
-  if (offline) return enqueue(text) && (route(), true);
-  try {
-    const rec = await api("/api/recipes", { method: "POST", body: JSON.stringify({ url: text }) });
-    go(`#/r/${rec.id}`);
-    return true;
-  } catch (err) {
-    if (err instanceof TypeError) { setOffline(true); return enqueue(text) && (route(), true); }  // Mac devenu injoignable
-    toast(err.message);
-    return false;
+const extractUrls = text => [...new Set(String(text || "").match(/https?:\/\/[^\s"'<>]+/g) || [])];
+
+// Ajoute un ou plusieurs liens : vers la file du Mac, ou gardés sur l'appareil s'il est injoignable
+async function submitLinks(text) {
+  const urls = extractUrls(text);
+  if (!urls.length) { toast(text ? "Aucun lien trouvé dans ce texte." : "Colle d'abord un lien."); return false; }
+  const keepAll = from => { urls.slice(from).forEach(u => enqueue(u)); go("#/"); route(); return true; };
+  if (offline) return keepAll(0);
+  let first = null;
+  for (const [i, url] of urls.entries()) {
+    try {
+      const rec = await api("/api/recipes", { method: "POST", body: JSON.stringify({ url }) });
+      first ||= rec;
+    } catch (err) {
+      if (err instanceof TypeError) { setOffline(true); return keepAll(i); }  // Mac devenu injoignable
+      toast(`${shortUrl(url)} : ${err.message}`);
+    }
   }
+  if (!first) return false;
+  if (urls.length === 1) go(`#/r/${first.id}`);
+  else { toast(`${plural(urls.length, "recette")} dans la file d'import`); go("#/"); }
+  return true;
 }
 function addSheet() {
-  const el = openSheet(`<h3>Ajouter une recette</h3>
+  const el = openSheet(`<h3>Ajouter des recettes</h3>
     <p class="meta" style="margin:-6px 0 14px">${offline
-      ? "Mac injoignable : le lien sera gardé et importé dès qu'il répond."
-      : "Colle le lien d'une vidéo TikTok, Instagram ou YouTube : on y écrit la recette pour toi."}</p>
-    <form id="addf"><label class="field"><span>Lien de la vidéo</span>
-      <input name="url" type="text" inputmode="url" autocomplete="off" placeholder="https://www.tiktok.com/@…"></label>
+      ? "Mac injoignable : les liens seront gardés et importés dès qu'il répond."
+      : "Colle un ou plusieurs liens (TikTok, Instagram, YouTube), un par ligne : ils passent dans la file d'import, une vidéo à la fois."}</p>
+    <form id="addf"><label class="field"><span>Liens des vidéos</span>
+      <textarea name="url" rows="3" inputmode="url" autocomplete="off" placeholder="https://www.tiktok.com/@…"></textarea></label>
+      <div class="meta" id="count" style="min-height:18px;margin:-6px 0 6px"></div>
       <div class="actions"><button type="button" class="btn ghost" id="paste">Coller</button>
-        <button class="btn">${offline ? "Garder pour plus tard" : "Ajouter au carnet"}</button></div></form>`);
-  const input = el.querySelector("input[name=url]");
+        <button class="btn" id="addgo">${offline ? "Garder pour plus tard" : "Ajouter au carnet"}</button></div></form>`);
+  const input = el.querySelector("textarea[name=url]");
+  const count = () => {
+    const n = extractUrls(input.value).length;
+    el.querySelector("#count").textContent = n > 1 ? `${n} liens détectés` : "";
+    el.querySelector("#addgo").textContent = offline ? "Garder pour plus tard" : n > 1 ? `Ajouter les ${n} recettes` : "Ajouter au carnet";
+  };
+  input.oninput = count;
   el.querySelector("#paste").onclick = async () => {
-    try { input.value = await navigator.clipboard.readText(); input.focus(); }
+    try { const t = await navigator.clipboard.readText(); input.value = (input.value ? input.value.trim() + "\n" : "") + t; count(); input.focus(); }
     catch { toast("Colle le lien dans le champ (appui long → Coller)."); input.focus(); }
   };
   el.querySelector("#addf").onsubmit = async e => {
     e.preventDefault();
-    if (await submitLink(input.value.trim())) el.remove();
+    if (await submitLinks(input.value.trim())) el.remove();
   };
   setTimeout(() => input.focus(), 60);
 }
@@ -1550,9 +1747,10 @@ function go(hash) {
 function route() {
   clearTimeout(timer);
   stopScanner();
-  const h = location.hash, m = h.match(/^#\/r\/(\w+)/), fm = h.match(/^#\/d\/(\w+)/), pm = h.match(/^#\/p\/(\d+)/);
+  const h = location.hash, m = h.match(/^#\/r\/(\w+)/), fm = h.match(/^#\/d\/(\w+)/), pm = h.match(/^#\/p\/(\d+)/),
+    em = h.match(/^#\/e\/(\w+)/);
   activeTab();
-  (m ? detail(m[1]) : fm ? folderPage(fm[1]) : pm ? productPage(pm[1]) : h === "#/scan" ? scanPage()
+  (em ? editPage(em[1]) : m ? detail(m[1]) : fm ? folderPage(fm[1]) : pm ? productPage(pm[1]) : h === "#/scan" ? scanPage()
     : h === "#/dossiers" ? foldersPage() : h === "#/produits" ? productsPage() : h === "#/sante" ? healthPage() : home()).catch(e => $view.innerHTML = `<div class="center"><h2>Oups</h2><p class="meta">${esc(e.message)}</p></div>`);
 }
 // Raccourci de partage ouvert alors que le Mac est injoignable : le service worker a servi

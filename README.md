@@ -81,6 +81,16 @@ affiche alors une carte « Aujourd'hui » et propose des recettes « Idéal apr�
 une séance. Les étapes du Raccourci, avec la bonne adresse, sont dans l'appli : carte
 « Relie l'app Santé » sur l'accueil (page `#/sante`).
 
+## Modifier une recette, file d'import
+
+- **Modifier** : bouton crayon en haut de la fiche. Photo (réduite sur le téléphone avant
+  l'envoi), titre, résumé, portions, temps, niveau, ingrédients, étapes, astuces, tags. Si les
+  ingrédients ou les portions changent, les valeurs nutritionnelles sont recalculées.
+- **File d'import** : on peut coller plusieurs liens d'un coup (bouton ⊕). Le serveur traite les
+  vidéos une par une, dans l'ordre d'ajout (`import_worker`) ; l'accueil affiche « Import en
+  cours » avec l'étape ou la place dans la file, et permet d'annuler un lien en attente. Un import
+  interrompu (serveur arrêté) reprend sa place dans la file au redémarrage.
+
 ## Lancer
 
 ```bash

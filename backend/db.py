@@ -22,7 +22,7 @@ def init() -> None:
         c.execute("""CREATE TABLE IF NOT EXISTS recipes (
             id TEXT PRIMARY KEY,
             url TEXT NOT NULL,
-            status TEXT NOT NULL,          -- pending | done | error
+            status TEXT NOT NULL,          -- queued (en file) | pending (en cours) | done | error
             error TEXT,
             author TEXT, platform TEXT, thumbnail TEXT,
             data TEXT,                     -- Recipe JSON
@@ -32,6 +32,8 @@ def init() -> None:
         cols = {r["name"] for r in c.execute("PRAGMA table_info(recipes)")}
         if "nutrition" not in cols:
             c.execute("ALTER TABLE recipes ADD COLUMN nutrition TEXT")         # résumé JSON
+        if "stage" not in cols:
+            c.execute("ALTER TABLE recipes ADD COLUMN stage TEXT")             # étape de l'import en cours
         if "nutrition_status" not in cols:
             # pending | done | error (le message d'erreur va alors dans la colonne error)
             c.execute("ALTER TABLE recipes ADD COLUMN nutrition_status TEXT")
@@ -72,8 +74,15 @@ def _folder_map(c: sqlite3.Connection) -> dict[str, list[str]]:
     return m
 
 
-def _row(r: sqlite3.Row, folders: dict[str, list[str]]) -> dict:
+def _queue_positions(c: sqlite3.Connection) -> dict[str, int]:
+    """Place de chaque import en attente (1 = le prochain à être traité)."""
+    rows = c.execute("SELECT id FROM recipes WHERE status = 'queued' ORDER BY created_at").fetchall()
+    return {r["id"]: i + 1 for i, r in enumerate(rows)}
+
+
+def _row(r: sqlite3.Row, folders: dict[str, list[str]], positions: dict[str, int] | None = None) -> dict:
     d = dict(r)
+    d["queue_pos"] = (positions or {}).get(d["id"])
     d["data"] = json.loads(d["data"]) if d["data"] else None
     d["nutrition"] = json.loads(d["nutrition"]) if d["nutrition"] else None
     d["folders"] = folders.get(d["id"], [])
@@ -83,7 +92,7 @@ def _row(r: sqlite3.Row, folders: dict[str, list[str]]) -> dict:
 def create(url: str) -> dict:
     rid = uuid.uuid4().hex[:12]
     with _conn() as c:
-        c.execute("INSERT INTO recipes (id, url, status, created_at) VALUES (?, ?, 'pending', ?)",
+        c.execute("INSERT INTO recipes (id, url, status, created_at) VALUES (?, ?, 'queued', ?)",
                   (rid, url, time.time()))
     return get(rid)
 
@@ -91,7 +100,7 @@ def create(url: str) -> dict:
 def find_by_url(url: str) -> dict | None:
     with _conn() as c:
         r = c.execute("SELECT * FROM recipes WHERE url = ? AND status != 'error'", (url,)).fetchone()
-        return _row(r, _folder_map(c)) if r else None
+        return _row(r, _folder_map(c), _queue_positions(c)) if r else None
 
 
 def update(rid: str, **fields) -> None:
@@ -106,14 +115,21 @@ def update(rid: str, **fields) -> None:
 def get(rid: str) -> dict | None:
     with _conn() as c:
         r = c.execute("SELECT * FROM recipes WHERE id = ?", (rid,)).fetchone()
-        return _row(r, _folder_map(c)) if r else None
+        return _row(r, _folder_map(c), _queue_positions(c)) if r else None
 
 
 def list_all() -> list[dict]:
     with _conn() as c:
         rows = c.execute("SELECT * FROM recipes ORDER BY created_at DESC").fetchall()
-        folders = _folder_map(c)
-    return [_row(r, folders) for r in rows]
+        folders, positions = _folder_map(c), _queue_positions(c)
+    return [_row(r, folders, positions) for r in rows]
+
+
+def next_queued() -> dict | None:
+    """Prochain import à traiter (le plus ancien en file)."""
+    with _conn() as c:
+        r = c.execute("SELECT id FROM recipes WHERE status = 'queued' ORDER BY created_at LIMIT 1").fetchone()
+    return get(r["id"]) if r else None
 
 
 def delete(rid: str) -> None:

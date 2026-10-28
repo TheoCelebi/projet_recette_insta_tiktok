@@ -7,6 +7,7 @@ import os
 import datetime as dt
 import json
 import re
+import threading
 import time
 import traceback
 import urllib.parse
@@ -33,7 +34,7 @@ def _load_env(path: str) -> None:
 _load_env(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from . import db, health, nutrition, products  # noqa: E402
-from .extractor import extract_recipe  # noqa: E402
+from .extractor import Recipe, extract_recipe  # noqa: E402
 from .media import fetch  # noqa: E402
 
 STATIC = os.path.join(os.path.dirname(__file__), "..", "frontend")
@@ -75,19 +76,41 @@ def save_thumbnail(rid: str, remote_url: str, fallback_frame: str | None = None)
 # ---------- Traitements en arrière-plan ----------
 
 def process(rid: str, url: str) -> None:
-    """Import complet : vidéo → recette → valeurs nutritionnelles + rangement en dossiers."""
+    """Import complet : vidéo → recette, puis valeurs nutritionnelles et dossiers en parallèle."""
     try:
+        db.update(rid, status="pending", stage="video", error=None)
         media = fetch(url)
+        if not db.get(rid):
+            return  # import annulé pendant le téléchargement
+        db.update(rid, stage="writing")
         recipe = extract_recipe(media)
         frame = media.frames[len(media.frames) // 2] if media.frames else None
-        db.update(rid, status="done", error=None, data=recipe.model_dump(), author=media.author,
+        db.update(rid, status="done", stage=None, error=None, data=recipe.model_dump(), author=media.author,
                   platform=media.platform, thumbnail=save_thumbnail(rid, media.thumbnail, frame),
                   url=media.url, nutrition_status="pending" if recipe.is_recipe else None)
     except Exception as e:  # noqa: BLE001 - on remonte l'erreur à l'utilisateur
-        db.update(rid, status="error", error=_friendly(e))
+        db.update(rid, status="error", stage=None, error=_friendly(e))
         return
     if recipe.is_recipe:
-        compute_nutrition(rid, assign_folders=True)
+        # La nutrition part dans le pool : la file passe tout de suite à la vidéo suivante
+        pool.submit(compute_nutrition, rid, True)
+
+
+# File d'import : les vidéos sont traitées une par une, dans l'ordre d'ajout
+import_wakeup = threading.Event()
+
+
+def import_worker() -> None:
+    while True:
+        job = db.next_queued()
+        if job is None:
+            import_wakeup.wait(timeout=30)
+            import_wakeup.clear()
+            continue
+        try:
+            process(job["id"], job["url"])
+        except Exception:  # noqa: BLE001 - la file ne doit jamais s'arrêter
+            traceback.print_exc()
 
 
 def compute_nutrition(rid: str, assign_folders: bool = False) -> None:
@@ -137,8 +160,8 @@ def _import(text: str) -> dict:
     if existing := db.find_by_url(url):
         return existing
     rec = db.create(url)
-    pool.submit(process, rec["id"], url)
-    return rec
+    import_wakeup.set()
+    return db.get(rec["id"])
 
 
 def _recipe_or_404(rid: str) -> dict:
@@ -164,9 +187,9 @@ def get_recipe(rid: str) -> dict:
 
 @app.post("/api/recipes/{rid}/retry")
 def retry(rid: str) -> dict:
-    r = _recipe_or_404(rid)
-    db.update(rid, status="pending", error=None)
-    pool.submit(process, rid, r["url"])
+    _recipe_or_404(rid)
+    db.update(rid, status="queued", stage=None, error=None, created_at=time.time())  # en fin de file
+    import_wakeup.set()
     return db.get(rid)
 
 
@@ -187,6 +210,49 @@ def set_recipe_folders(rid: str, req: FolderIds) -> dict:
     _recipe_or_404(rid)
     known = {f["id"] for f in db.list_folders()}
     db.set_recipe_folders(rid, [fid for fid in req.folder_ids if fid in known])
+    return db.get(rid)
+
+
+class RecipeEdit(BaseModel):
+    data: Recipe
+
+
+@app.put("/api/recipes/{rid}")
+def edit_recipe(rid: str, req: RecipeEdit) -> dict:
+    """Modification manuelle de la recette ; nutrition recalculée si ingrédients ou portions changent."""
+    r = _recipe_or_404(rid)
+    if r["status"] != "done":
+        raise HTTPException(409, "La recette est encore en cours d'import.")
+    new = req.data.model_dump()
+    old = r["data"] or {}
+    db.update(rid, data=new)
+    if new.get("is_recipe") and (new["ingredients"] != old.get("ingredients") or new["servings"] != old.get("servings")):
+        db.update(rid, nutrition_status="pending", error=None)
+        pool.submit(compute_nutrition, rid)
+    return db.get(rid)
+
+
+MAX_IMAGE = 8 * 1024 * 1024
+
+
+@app.post("/api/recipes/{rid}/image")
+async def upload_image(rid: str, request: Request) -> dict:
+    """Nouvelle photo (corps brut, JPEG/PNG/WebP, déjà réduite par le téléphone)."""
+    _recipe_or_404(rid)
+    kind = (request.headers.get("content-type") or "").split(";")[0].strip()
+    if kind not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(415, "Photo attendue (JPEG, PNG ou WebP).")
+    body = await request.body()
+    if not body or len(body) > MAX_IMAGE:
+        raise HTTPException(413, "Photo vide ou trop lourde (8 Mo maximum).")
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[kind]
+    for old in ("jpg", "png", "webp"):
+        if old != ext and os.path.exists(os.path.join(THUMBS, f"{rid}.{old}")):
+            os.remove(os.path.join(THUMBS, f"{rid}.{old}"))
+    with open(os.path.join(THUMBS, f"{rid}.{ext}"), "wb") as f:
+        f.write(body)
+    # ?v= : nouvelle adresse à chaque photo, sinon le téléphone garderait l'ancienne en cache
+    db.update(rid, thumbnail=f"/thumbs/{rid}.{ext}?v={int(time.time())}")
     return db.get(rid)
 
 
@@ -362,7 +428,8 @@ def _resume_work() -> None:
             db.update_folder(f["id"], status="idle")
     for r in db.list_all():
         if r["status"] == "pending":
-            pool.submit(process, r["id"], r["url"])
+            db.update(r["id"], status="queued", stage=None)  # import interrompu : retour dans la file
+            import_wakeup.set()
         elif (r["status"] == "done" and (r["data"] or {}).get("is_recipe")
               and r["nutrition_status"] != "error"
               and (r["nutrition"] is None or r["nutrition_status"] == "pending"
@@ -372,6 +439,7 @@ def _resume_work() -> None:
 
 
 pool.submit(_backfill_thumbnails)
+threading.Thread(target=import_worker, name="file-import", daemon=True).start()
 if os.environ.get("RESUME_WORK", "1") != "0":
     _resume_work()
 app.mount("/thumbs", StaticFiles(directory=THUMBS), name="thumbs")
