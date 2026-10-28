@@ -15,6 +15,9 @@ ingrédients et quantités).
 
 Reconstitue la recette la plus fidèle possible, en français :
 - Croise toutes les sources. Les quantités lues à l'écran ou dans la légende priment.
+- Nombre de portions : celui annoncé dans la vidéo. S'il n'est pas dit, estime-le d'après les \
+  quantités (portions d'adulte normales, ex. ~150-200 g de viande par personne) et mets \
+  servings_estimated à true. Ne le laisse vide que si c'est vraiment impossible.
 - N'invente pas de quantité : si elle n'est jamais donnée, laisse quantity vide et mets \
   une estimation raisonnable dans note (ex. "quantité non précisée, ~1 c. à soupe").
 - Unités métriques quand c'est possible (g, ml, c. à soupe, c. à café).
@@ -34,7 +37,9 @@ class Recipe(BaseModel):
     is_recipe: bool
     title: str
     summary: str = Field(description="Résumé appétissant en 1-2 phrases")
-    servings: int | None
+    servings: int | None = Field(description="Nombre de portions ; estimé d'après les quantités s'il n'est pas dit")
+    servings_estimated: bool = Field(default=False, description="true si le nombre de portions n'est pas donné "
+                                                                "dans la vidéo et a été estimé")
     prep_minutes: int | None
     cook_minutes: int | None
     difficulty: str = Field(description="facile, moyen ou difficile")

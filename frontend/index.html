@@ -842,7 +842,9 @@ function renderDetail(r) {
     bindBack(); bindDelete(id); return JSON.stringify([r, readFolders(), offline]);
   }
 
-  const base = d.servings || 1;
+  // Portions non dites dans la vidéo : on prend l'estimation (de l'import ou du calcul nutritionnel)
+  const base = d.servings || r.nutrition?.servings || 1;
+  const estimated = d.servings_estimated || (!d.servings && !!r.nutrition?.servings);
   const st = detailState[id] ||= { servings: base, checked: new Set() };
 
   const render = () => {
@@ -873,6 +875,7 @@ function renderDetail(r) {
       <div class="sec-title"><h3>Ingrédients</h3>
         <div class="stepper"><button data-s="-1" aria-label="Moins de personnes">−</button>
         <span>${st.servings} pers.</span><button data-s="1" aria-label="Plus de personnes">+</button></div></div>
+      ${estimated && st.servings === base ? `<p class="meta" style="margin:-4px 0 6px">Nombre de personnes estimé : la vidéo ne le précisait pas.</p>` : ""}
       ${ingHtml}
       <div class="sec-title"><h3>Préparation</h3></div>
       <ol class="steps">${d.steps.map(s => `<li><span>${esc(s)}</span></li>`).join("")}</ol>
@@ -1251,6 +1254,7 @@ function renderEditor(r) {
     if (!title) { err.textContent = "Donne un titre à ta recette."; $("#e-title").focus(); return; }
     const data = {
       ...d, title, summary: $("#e-summary").value.trim(), servings: int($("#e-serv").value),
+      servings_estimated: !!d.servings_estimated && int($("#e-serv").value) === d.servings,
       prep_minutes: int($("#e-prep").value), cook_minutes: int($("#e-cook").value), difficulty: $("#e-diff").value,
       ingredients, steps: [...document.querySelectorAll("#steps textarea")].map(t => t.value.trim()).filter(Boolean),
       tips: $("#e-tips").value.split("\n").map(t => t.trim()).filter(Boolean),

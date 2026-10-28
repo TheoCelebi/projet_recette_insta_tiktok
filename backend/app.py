@@ -126,10 +126,20 @@ def compute_nutrition(rid: str, assign_folders: bool = False) -> None:
         if links := db.ingredient_products(rid):  # produits scannés : valeurs de leur étiquette
             summary = nutrition.apply_products(summary, r["data"], links)
         db.update(rid, nutrition=summary, nutrition_status="done")
+        _fill_servings(rid)
         db.add_to_folders(rid, folder_ids)
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         db.update(rid, nutrition_status="error", error=_friendly(e))
+
+
+def _fill_servings(rid: str) -> None:
+    """Recette sans nombre de portions (non dit dans la vidéo) : on reprend celui estimé par le
+    calcul nutritionnel, pour que ingrédients, nutrition et liste de courses parlent du même nombre."""
+    r = db.get(rid)
+    d, n = (r or {}).get("data") or {}, (r or {}).get("nutrition") or {}
+    if d and not d.get("servings") and n.get("servings"):
+        db.update(rid, data={**d, "servings": n["servings"], "servings_estimated": True})
 
 
 def sort_folder(fid: str) -> None:
@@ -526,6 +536,9 @@ def _backfill_thumbnails() -> None:
 
 
 def _resume_work() -> None:
+    for r in db.list_all():  # recettes importées avant l'estimation du nombre de portions
+        if r["status"] == "done":
+            _fill_servings(r["id"])
     for f in db.list_folders():
         if f["status"] == "sorting":
             db.update_folder(f["id"], status="idle")
