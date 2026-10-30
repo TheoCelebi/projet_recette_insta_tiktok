@@ -285,6 +285,11 @@
   ul.shop .nm { font-size: 16px; } ul.shop .nm b { font: 500 16px var(--serif); color: var(--accent); margin-right: 6px; }
   ul.shop .src { font-size: 12px; color: var(--muted); margin-top: 2px; }
   ul.shop .price { color: var(--muted); }
+  .ask { margin: 18px 0 6px; }
+  .ask .qa { margin: 10px 0; }
+  .ask .q { font-weight: 600; margin: 0 0 4px; }
+  .ask .a { margin: 0; color: var(--ink); line-height: 1.5; white-space: pre-line; }
+  .ask .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
   .shop-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
                 background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 0 0 16px; }
   .shop-total b { font: 500 26px var(--serif); color: var(--accent); white-space: nowrap; }
@@ -958,6 +963,7 @@ function renderDetail(r) {
     if (run) run.onclick = () => api(`/api/recipes/${id}/nutrition`, { method: "POST" }).then(route).catch(e => toast(e.message));
     const rg = document.getElementById("range");
     if (rg) rg.onclick = () => rangeSheet(r);
+    bindAsk(r, st, render);
     bindBack(recipeBack); bindDelete(id);
   };
   render();
@@ -1058,10 +1064,45 @@ function nutritionHtml(r, st) {
         i.product ? `<br><a class="meta" style="color:var(--accent)" href="#/p/${esc(i.product.code)}">✓ étiquette : ${esc(i.product.name)}</a>` : ""}</td>
         <td class="v">${Math.round(i.grams)} g</td><td class="v">${Math.round(i.kcal)} kcal</td><td class="v">${fmtN(i.protein_g, "g")}</td></tr>`).join("")}</table>
     </details>
+    ${askHtml(r, st)}
     <p class="fine">${n.products_applied ? `${plural(n.products_applied, "ingrédient")} calculé${n.products_applied > 1 ? "s" : ""} avec l'étiquette de ton produit scanné (macros) ; le reste est estimé. ` : ""}Estimation calculée à partir des ingrédients (fiabilité ${esc(n.confidence)}). ${esc(n.notes)}
       Les % se rapportent aux apports de référence d'un adulte (2 000 kcal).
       ${offline ? "" : `<button class="link-btn" id="nutri-run">Recalculer</button>`}</p>
   </div>`;
+}
+
+// Questions sur les valeurs nutritionnelles : répondues par Claude Haiku, gardées sur l'appareil
+const ASK_EXAMPLES = ["D'où viennent les protéines ?", "Pourquoi autant de calories ?", "Comment est calculée une portion ?"];
+const readAsk = id => { try { return JSON.parse(ls.get(`ask-${id}`)) || []; } catch { return []; } };
+function askHtml(r, st) {
+  const qa = readAsk(r.id);
+  return `<div class="ask"><h4>Une question sur ces valeurs ?</h4>
+    ${qa.map(x => `<div class="qa"><p class="q">${esc(x.q)}</p><p class="a">${esc(x.a)}</p></div>`).join("")}
+    ${st.asking ? `<div class="qa"><p class="q">${esc(st.asking)}</p><p class="a meta">Claude réfléchit…</p></div>` : ""}
+    ${offline ? `<p class="meta">Disponible quand le Mac répond.</p>` : `
+      ${qa.length || st.asking ? "" : `<div class="chips">${ASK_EXAMPLES.map(q => `<button class="chip" data-ask="${esc(q)}">${esc(q)}</button>`).join("")}</div>`}
+      <form class="shop-add" id="ask-form"><input name="q" maxlength="300" autocomplete="off" placeholder="Pourquoi 52 g de protéines ?"
+        aria-label="Ta question" ${st.asking ? "disabled" : ""}><button class="btn" ${st.asking ? "disabled" : ""}>Demander</button></form>`}
+    ${qa.length ? `<button class="link-btn" id="ask-clear">Effacer les questions</button>` : ""}
+  </div>`;
+}
+function bindAsk(r, st, render) {
+  const send = async q => {
+    q = q.trim();
+    if (!q || st.asking) return;
+    st.asking = q; render();
+    try {
+      const { answer } = await api(`/api/recipes/${r.id}/ask`, { method: "POST", body: JSON.stringify({ question: q, servings: st.servings }) });
+      ls.set(`ask-${r.id}`, JSON.stringify([...readAsk(r.id), { q, a: answer }].slice(-10)));
+    } catch (e) { toast(e instanceof TypeError ? "Mac injoignable : réessaie plus tard." : e.message); }
+    st.asking = null;
+    if (location.hash === `#/r/${r.id}`) render();
+  };
+  const f = document.getElementById("ask-form");
+  if (f) f.onsubmit = e => { e.preventDefault(); send(e.target.q.value); };
+  $view.querySelectorAll("[data-ask]").forEach(b => b.onclick = () => send(b.dataset.ask));
+  const c = document.getElementById("ask-clear");
+  if (c) c.onclick = () => { ls.set(`ask-${r.id}`, "[]"); render(); };
 }
 
 /* ---------- Dossiers ---------- */

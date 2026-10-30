@@ -17,7 +17,7 @@ from typing import TypeVar
 import anthropic
 from pydantic import BaseModel
 
-MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"}
+MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5"}
 
 T = TypeVar("T", bound=BaseModel)
 

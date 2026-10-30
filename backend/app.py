@@ -33,7 +33,7 @@ def _load_env(path: str) -> None:
 
 _load_env(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from . import db, health, nutrition, prices, products  # noqa: E402
+from . import ask, db, health, nutrition, prices, products  # noqa: E402
 from .extractor import Recipe, extract_recipe  # noqa: E402
 from .media import fetch  # noqa: E402
 
@@ -211,6 +211,24 @@ def recompute_nutrition(rid: str) -> dict:
     db.update(rid, nutrition_status="pending", error=None)
     pool.submit(compute_nutrition, rid)
     return db.get(rid)
+
+
+class Question(BaseModel):
+    question: str = Field(min_length=2, max_length=300)
+    servings: float | None = Field(default=None, gt=0, le=100)
+
+
+@app.post("/api/recipes/{rid}/ask")
+def ask_nutrition(rid: str, req: Question) -> dict:
+    """Explication des valeurs nutritionnelles (Claude Haiku : rapide et peu coûteux)."""
+    r = _recipe_or_404(rid)
+    if r["nutrition_status"] != "done" or not r["nutrition"]:
+        raise HTTPException(409, "Les valeurs nutritionnelles de cette recette ne sont pas encore calculées.")
+    try:
+        return {"answer": ask.answer(r, req.question.strip(), req.servings)}
+    except Exception as e:  # noqa: BLE001
+        traceback.print_exc()
+        raise HTTPException(500, _friendly(e))
 
 
 class FolderIds(BaseModel):

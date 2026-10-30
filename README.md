@@ -91,6 +91,13 @@ une séance. Les étapes du Raccourci, avec la bonne adresse, sont dans l'appli 
   cours » avec l'étape ou la place dans la file, et permet d'annuler un lien en attente. Un import
   interrompu (serveur arrêté) reprend sa place dans la file au redémarrage.
 
+## Questions sur la nutrition
+
+Sous les valeurs nutritionnelles de chaque recette, « Une question sur ces valeurs ? » : Claude
+**Haiku** (rapide, peu coûteux) explique les chiffres déjà calculés (d'où viennent les protéines,
+comment on passe à une portion…) sans les recalculer (`backend/ask.py`, `POST /api/recipes/{id}/ask`).
+Les 10 dernières questions de chaque recette sont gardées sur l'appareil.
+
 ## Liste de courses et scan en magasin
 
 - **Liste de courses** (onglet Courses) : « Ajouter à la liste de courses » sur une recette ajoute
